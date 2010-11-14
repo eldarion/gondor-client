@@ -1,3 +1,6 @@
+import smtplib
+import socket
+
 import argia
 
 try:

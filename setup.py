@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = "gondor",
-    version = "1.0a1.dev4",
+    version = "1.0a1.dev5",
     description = "Eldarion infrastructure tools",
     author = "Eldarion",
     author_email = "development@eldarion.com",
