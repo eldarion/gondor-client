@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = "gondor",
-    version = "1.0a1.dev2",
+    version = "1.0a1.dev3",
     description = "Eldarion infrastructure tools",
     author = "Eldarion",
     author_email = "development@eldarion.com",
@@ -20,5 +20,6 @@ setup(
     install_requires = [
         "argparse",
         "argia",
+        "redis==2.0.0",
     ]
 )
