@@ -11,7 +11,7 @@ class SendMailTask(object):
     queue = "mailer"
     
     @staticmethod
-    def perform(messages):
+    def perform(runner, messages):
         smtp = smtplib.SMTP("mail1.gondor.ex.eldarion.com", 25, socket.getfqdn())
         for message in messages:
             from_addr, to_addrs, msg = message
