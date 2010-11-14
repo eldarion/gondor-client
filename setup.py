@@ -14,7 +14,11 @@ setup(
             "gondor = gondor.__main__:main",
         ],
     },
+    dependency_links = [
+        "http://dist.eldarion.com/gondor/argia/",
+    ],
     install_requires = [
         "argparse",
+        "argia",
     ]
 )
