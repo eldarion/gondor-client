@@ -1,11 +1,49 @@
+import httplib
 import mimetools
 import mimetypes
 import os
 import stat
+import sys
+import time
 import urllib
 import urllib2
 
 from cStringIO import StringIO
+
+
+ucb = None # upload callback
+ubs = None # upload bytes sent
+ubt = None # upload bytes total
+
+
+def ucb(ubt, ubs):
+    text = "Pushing tarball to Gondor... "
+    sys.stdout.write("\r%s[%.0f%%]  " % (text, (float(ubs) / ubt) * 100))
+
+
+class HTTPConnection(httplib.HTTPConnection):
+    
+    def send(self, buf):
+        global ubt, ubs
+        ubs = 0
+        ubt = send_length = len(buf)
+        cs = 8192
+        while ubs < send_length:
+            if ucb:
+                ucb(ubt, ubs)
+            sys.stdout.flush()
+            t1 = time.time()
+            httplib.HTTPConnection.send(self, buf[ubs:ubs+cs])
+            ubs += cs
+            t2 = time.time()
+        if ucb:
+            ucb(1, 1)
+
+
+class UploadProgressHandler(urllib2.HTTPHandler):
+    
+    def http_open(self, request):
+        return self.do_open(HTTPConnection, request)
 
 
 class MultipartPostHandler(urllib2.BaseHandler):

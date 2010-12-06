@@ -1,9 +1,10 @@
 import argparse
 import os
 import subprocess
+import sys
 import urllib2
 
-from gondor.http import MultipartPostHandler
+from gondor import http
 
 
 def cmd_deploy(args):
@@ -13,20 +14,24 @@ def cmd_deploy(args):
     tarball = None
     
     try:
-        print "building tarball from %s" % commit
-        
+        sys.stdout.write("Building tarball from %s... " % commit)
         tarball = os.path.abspath(os.path.join(os.curdir, "%s.tar.gz" % domain))
         cmd = "git archive --format=tar %s | gzip > %s" % (commit, tarball)
         subprocess.call([cmd], shell=True)
+        sys.stdout.write("[ok]\n")
         
-        print "pushing tarball to Gondor for deploy"
-        
-        opener = urllib2.build_opener(MultipartPostHandler)
+        text = "Pushing tarball to Gondor... "
+        sys.stdout.write(text)
+        opener = urllib2.build_opener(
+            http.MultipartPostHandler,
+            http.UploadProgressHandler
+        )
         params = {
             "domain": domain,
             "tarball": open(tarball, "rb"),
         }
-        print opener.open("http://gondor.eldarion.com/deploy/", params).read()
+        response = opener.open("http://gondor.eldarion.com/deploy/", params)
+        sys.stdout.write("\r%s[%s]   \n" % (text, response.read()))
     finally:
         if tarball:
             os.unlink(tarball)
