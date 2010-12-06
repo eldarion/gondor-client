@@ -1,8 +1,10 @@
 import argparse
+import ConfigParser
 import os
 import subprocess
 import sys
 import urllib2
+import zlib
 
 from gondor import http
 
@@ -37,6 +39,26 @@ def cmd_deploy(args):
             os.unlink(tarball)
 
 
+def cmd_sqldump(args, config):
+    domain = args.domain[0]
+    
+    # request SQL dump and stream the response through uncompression
+    
+    d = zlib.decompressobj(16+zlib.MAX_WBITS)
+    sql_url = "http://gondor.eldarion.com/sqldump/%s" % domain
+    mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+    mgr.add_password(None, sql_url, config["username"], config["password"])
+    opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
+    response = opener.open(sql_url)
+    cs = 16 * 1024
+    while True:
+        chunk = response.read(cs)
+        if not chunk:
+            break
+        sys.stdout.write(d.decompress(chunk))
+        sys.stdout.flush()
+
+
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     command_parsers = parser.add_subparsers(dest="command")
@@ -46,7 +68,24 @@ def main():
     parser_deploy.add_argument("domain", nargs=1)
     parser_deploy.add_argument("commit", nargs=1)
     
+    # cmd: sqldump
+    parser_sqldump = command_parsers.add_parser("sqldump")
+    parser_sqldump.add_argument("domain", nargs=1)
+    
     args = parser.parse_args()
-    if args.command == "deploy":
-        cmd_deploy(args)
+    
+    # config
+    
+    config = ConfigParser.RawConfigParser()
+    config.read(os.path.expanduser("~/.gondor"))
+    config = {
+        "username": config.get("auth", "username"),
+        "password": config.get("auth", "password"),
+        "api_key": config.get("auth", "key"),
+    }
+    
+    {
+        "deploy": cmd_deploy,
+        "sqldump": cmd_sqldump
+    }[args.command](args, config)
     
