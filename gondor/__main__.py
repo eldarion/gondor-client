@@ -9,7 +9,7 @@ import zlib
 from gondor import http
 
 
-def cmd_deploy(args):
+def cmd_deploy(args, config):
     domain = args.domain[0]
     commit = args.commit[0]
     
@@ -24,7 +24,11 @@ def cmd_deploy(args):
         
         text = "Pushing tarball to Gondor... "
         sys.stdout.write(text)
+        url = "http://gondor.eldarion.com/deploy/"
+        mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        mgr.add_password(None, url, config["username"], config["password"])
         opener = urllib2.build_opener(
+            urllib2.HTTPBasicAuthHandler(mgr),
             http.MultipartPostHandler,
             http.UploadProgressHandler
         )
@@ -32,7 +36,7 @@ def cmd_deploy(args):
             "domain": domain,
             "tarball": open(tarball, "rb"),
         }
-        response = opener.open("http://gondor.eldarion.com/deploy/", params)
+        response = opener.open(url, params)
         sys.stdout.write("\r%s[%s]   \n" % (text, response.read()))
     finally:
         if tarball:
