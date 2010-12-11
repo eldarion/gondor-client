@@ -6,7 +6,7 @@ import sys
 import urllib2
 import zlib
 
-from gondor import http
+from gondor import http, utils
 
 
 def cmd_deploy(args, config):
@@ -17,8 +17,9 @@ def cmd_deploy(args, config):
     
     try:
         sys.stdout.write("Building tarball from %s... " % commit)
-        tarball = os.path.abspath(os.path.join(os.curdir, "%s.tar.gz" % domain))
-        cmd = "git archive --format=tar %s | gzip > %s" % (commit, tarball)
+        repo_root = utils.check_output("git rev-parse --show-toplevel").strip()
+        tarball = os.path.abspath(os.path.join(repo_root, "%s.tar.gz" % domain))
+        cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
         subprocess.call([cmd], shell=True)
         sys.stdout.write("[ok]\n")
         
