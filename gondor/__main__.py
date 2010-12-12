@@ -6,6 +6,11 @@ import sys
 import urllib2
 import zlib
 
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
 from gondor import http, utils
 
 
@@ -38,7 +43,14 @@ def cmd_deploy(args, config):
             "tarball": open(tarball, "rb"),
         }
         response = opener.open(url, params)
-        sys.stdout.write("\r%s[%s]   \n" % (text, response.read()))
+        data = json.loads(response.read())
+        if data["status"] == "error":
+            message = data["message"]
+        elif data["status"] == "success":
+            message = "ok"
+        else:
+            message = "unknown"
+        sys.stdout.write("\r%s[%s]   \n" % (text, message))
     finally:
         if tarball:
             os.unlink(tarball)
