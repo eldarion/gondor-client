@@ -11,6 +11,7 @@ try:
 except ImportError:
     import json
 
+from gondor import __version__
 from gondor import http, utils
 
 
@@ -78,6 +79,8 @@ def cmd_sqldump(args, config):
 
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
+    parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
+    
     command_parsers = parser.add_subparsers(dest="command")
     
     # cmd: deploy
@@ -105,4 +108,3 @@ def main():
         "deploy": cmd_deploy,
         "sqldump": cmd_sqldump
     }[args.command](args, config)
-    

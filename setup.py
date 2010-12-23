@@ -1,9 +1,11 @@
 from setuptools import setup, find_packages
 
+from gondor import __version__
+
 
 setup(
     name = "gondor",
-    version = "1.0a1.dev7",
+    version = __version__,
     description = "Eldarion infrastructure tools",
     author = "Eldarion",
     author_email = "development@eldarion.com",
