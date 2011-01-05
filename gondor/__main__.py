@@ -15,6 +15,20 @@ from gondor import __version__
 from gondor import http, utils
 
 
+def cmd_init(args, config):
+    gondor_dir = os.path.join(os.getcwd(), ".gondor")
+    if not os.path.exists(gondor_dir):
+        os.mkdir(gondor_dir)
+        if True: # @@@ allow turning off the auto commit
+            if os.path.join(os.getcwd(), ".git"):
+                # git add .gondor
+                # git commit -m "gondor init"
+                pass
+            if os.path.join(os.getcwd(), ".hg"):
+                # whatever the heck the equivlent is in hg
+                pass
+
+
 def cmd_deploy(args, config):
     label = args.domain[0]
     commit = args.commit[0]
@@ -91,6 +105,10 @@ def main():
     
     command_parsers = parser.add_subparsers(dest="command")
     
+    # cmd: init
+    parser_init = command_parsers.add_parser("init")
+    parser_init.add_argument("client_key", nargs=1)
+    
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
     parser_deploy.add_argument("label", nargs=1)
@@ -112,6 +130,7 @@ def main():
     }
     
     {
+        "init": cmd_init,
         "deploy": cmd_deploy,
         "sqldump": cmd_sqldump
     }[args.command](args, config)
