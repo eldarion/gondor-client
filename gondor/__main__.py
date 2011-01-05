@@ -16,14 +16,21 @@ from gondor import http, utils
 
 
 def cmd_deploy(args, config):
-    domain = args.domain[0]
+    label = args.domain[0]
     commit = args.commit[0]
     
+    gondor_dirname = ".gondor"
+    repo_root = utils.find_nearest(os.cwd(), gondor_dirname)
     tarball = None
     
     try:
+        sys.stdout.write("Reading configuration... ")
+        config = ConfigParser.RawConfigParser()
+        config.read(os.path.join(repo_root, gondor_dirname, "config"))
+        client_key = config.get("gondor", "client_key")
+        sys.stdout.write("[ok]\n")
+        
         sys.stdout.write("Building tarball from %s... " % commit)
-        repo_root = utils.check_output("git rev-parse --show-toplevel").strip()
         tarball = os.path.abspath(os.path.join(repo_root, "%s.tar.gz" % domain))
         cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
         subprocess.call([cmd], shell=True)
@@ -40,7 +47,9 @@ def cmd_deploy(args, config):
             http.UploadProgressHandler
         )
         params = {
-            "domain": domain,
+            "version": __version__,
+            "client_key": client_key,
+            "label": label,
             "tarball": open(tarball, "rb"),
         }
         response = opener.open(url, params)
@@ -85,7 +94,7 @@ def main():
     
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
-    parser_deploy.add_argument("domain", nargs=1)
+    parser_deploy.add_argument("label", nargs=1)
     parser_deploy.add_argument("commit", nargs=1)
     
     # cmd: sqldump
@@ -101,7 +110,6 @@ def main():
     config = {
         "username": config.get("auth", "username"),
         "password": config.get("auth", "password"),
-        "api_key": config.get("auth", "key"),
     }
     
     {
