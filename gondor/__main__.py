@@ -47,6 +47,7 @@ def cmd_deploy(args, config):
             http.UploadProgressHandler
         )
         params = {
+            "version": __version__,
             "client_key": client_key,
             "label": label,
             "tarball": open(tarball, "rb"),
