@@ -26,7 +26,7 @@ def cmd_deploy(args, config):
     try:
         sys.stdout.write("Reading configuration... ")
         config = ConfigParser.RawConfigParser()
-        config.read(os.path.join(repo_root, gondor_dirname))
+        config.read(os.path.join(repo_root, gondor_dirname, "config"))
         client_key = config.get("gondor", "client_key")
         sys.stdout.write("[ok]\n")
         
