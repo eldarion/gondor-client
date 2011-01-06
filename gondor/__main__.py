@@ -31,8 +31,12 @@ def cmd_deploy(args, config):
         client_key = local_config.get("gondor", "client_key")
         sys.stdout.write("[ok]\n")
         
+        sha = utils.check_output("git rev-parse %s" % commit).strip()
+        if commit == "HEAD":
+            commit = sha
+        
         sys.stdout.write("Building tarball from %s... " % commit)
-        tarball = os.path.abspath(os.path.join(repo_root, "%s.tar.gz" % label))
+        tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
         cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
         subprocess.call([cmd], shell=True)
         sys.stdout.write("[ok]\n")
@@ -51,6 +55,8 @@ def cmd_deploy(args, config):
             "version": __version__,
             "client_key": client_key,
             "label": label,
+            "sha": sha,
+            "commit": commit,
             "tarball": open(tarball, "rb"),
         }
         response = opener.open(url, params)
