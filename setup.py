@@ -20,6 +20,6 @@ setup(
         "http://dist.eldarion.com/gondor/argia/",
     ],
     install_requires = [
-        "argparse",
+        "argparse==1.1",
     ]
 )
