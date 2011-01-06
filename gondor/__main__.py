@@ -20,7 +20,7 @@ def cmd_deploy(args, config):
     commit = args.commit[0]
     
     gondor_dirname = ".gondor"
-    repo_root = utils.find_nearest(os.cwd(), gondor_dirname)
+    repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     tarball = None
     
     try:
@@ -68,6 +68,9 @@ def cmd_deploy(args, config):
 
 def cmd_sqldump(args, config):
     label = args.label[0]
+    
+    gondor_dirname = ".gondor"
+    repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     
     config = ConfigParser.RawConfigParser()
     config.read(os.path.join(repo_root, gondor_dirname, "config"))
