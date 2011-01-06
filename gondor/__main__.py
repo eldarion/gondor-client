@@ -16,7 +16,7 @@ from gondor import http, utils
 
 
 def cmd_deploy(args, config):
-    label = args.domain[0]
+    label = args.label[0]
     commit = args.commit[0]
     
     gondor_dirname = ".gondor"
@@ -31,7 +31,7 @@ def cmd_deploy(args, config):
         sys.stdout.write("[ok]\n")
         
         sys.stdout.write("Building tarball from %s... " % commit)
-        tarball = os.path.abspath(os.path.join(repo_root, "%s.tar.gz" % domain))
+        tarball = os.path.abspath(os.path.join(repo_root, "%s.tar.gz" % label))
         cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
         subprocess.call([cmd], shell=True)
         sys.stdout.write("[ok]\n")
@@ -67,16 +67,25 @@ def cmd_deploy(args, config):
 
 
 def cmd_sqldump(args, config):
-    domain = args.domain[0]
+    label = args.label[0]
+    
+    config = ConfigParser.RawConfigParser()
+    config.read(os.path.join(repo_root, gondor_dirname, "config"))
+    client_key = config.get("gondor", "client_key")
     
     # request SQL dump and stream the response through uncompression
     
     d = zlib.decompressobj(16+zlib.MAX_WBITS)
-    sql_url = "http://gondor.eldarion.com/sqldump/%s" % domain
+    sql_url = "http://gondor.eldarion.com/sqldump/"
     mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
     mgr.add_password(None, sql_url, config["username"], config["password"])
     opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
-    response = opener.open(sql_url)
+    params = {
+        "version": __version__,
+        "client_key": client_key,
+        "label": label,
+    }
+    response = opener.open(sql_url, params)
     cs = 16 * 1024
     while True:
         chunk = response.read(cs)
@@ -99,7 +108,7 @@ def main():
     
     # cmd: sqldump
     parser_sqldump = command_parsers.add_parser("sqldump")
-    parser_sqldump.add_argument("domain", nargs=1)
+    parser_sqldump.add_argument("label", nargs=1)
     
     args = parser.parse_args()
     
