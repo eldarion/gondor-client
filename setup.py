@@ -21,7 +21,5 @@ setup(
     ],
     install_requires = [
         "argparse",
-        "argia",
-        "redis==2.0.0",
     ]
 )
