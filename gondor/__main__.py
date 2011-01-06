@@ -3,6 +3,7 @@ import ConfigParser
 import os
 import subprocess
 import sys
+import urllib
 import urllib2
 import zlib
 
@@ -72,9 +73,9 @@ def cmd_sqldump(args, config):
     gondor_dirname = ".gondor"
     repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     
-    config = ConfigParser.RawConfigParser()
-    config.read(os.path.join(repo_root, gondor_dirname, "config"))
-    client_key = config.get("gondor", "client_key")
+    local_config = ConfigParser.RawConfigParser()
+    local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
+    client_key = local_config.get("gondor", "client_key")
     
     # request SQL dump and stream the response through uncompression
     
@@ -88,7 +89,7 @@ def cmd_sqldump(args, config):
         "client_key": client_key,
         "label": label,
     }
-    response = opener.open(sql_url, params)
+    response = opener.open(sql_url, urllib.urlencode(params))
     cs = 16 * 1024
     while True:
         chunk = response.read(cs)
