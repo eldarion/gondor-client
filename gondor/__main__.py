@@ -44,6 +44,49 @@ def cmd_init(args, config):
             new_config.write(cf)
 
 
+def cmd_create(args, config):
+    gondor_dirname = ".gondor"
+    repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    
+    label = args.label[0]
+    
+    kind = args.kind
+    if kind is None:
+        kind = "dev"
+    
+    sys.stdout.write("Reading configuration... ")
+    local_config = ConfigParser.RawConfigParser()
+    local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
+    site_key = local_config.get("gondor", "site_key")
+    sys.stdout.write("[ok]\n")
+    
+    text = "Creating instance on Gondor... "
+    url = "http://gondor.io/create/"
+    mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+    mgr.add_password(None, url, config["username"], config["password"])
+    opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
+    params = {
+        "version": __version__,
+        "site_key": site_key,
+        "label": label,
+        "kind": kind,
+    }
+    response = opener.open(url, urllib.urlencode(params))
+    data = json.loads(response.read())
+    if data["status"] == "error":
+        message = "error"
+    elif data["status"] == "success":
+        message = "ok"
+    else:
+        message = "unknown"
+    sys.stdout.write("\r%s[%s]   \n" % (text, message))
+    if data["status"] == "success":
+        sys.stdout.write("\nRun: gondor deploy %s HEAD" % label)
+        sys.stdout.write("\nVisit: %s\n" % data["url"])
+    else:
+        sys.stdout.write("\nError: %s\n" % data["message"])
+
+
 def cmd_deploy(args, config):
     label = args.label[0]
     commit = args.commit[0]
@@ -143,6 +186,11 @@ def main():
     parser_init = command_parsers.add_parser("init")
     parser_init.add_argument("site_key", nargs=1)
     
+    # cmd: create
+    parser_create = command_parsers.add_parser("create")
+    parser_create.add_argument("--kind")
+    parser_create.add_argument("label", nargs=1)
+    
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
     parser_deploy.add_argument("label", nargs=1)
@@ -165,6 +213,7 @@ def main():
     
     {
         "init": cmd_init,
+        "create": cmd_create,
         "deploy": cmd_deploy,
         "sqldump": cmd_sqldump
     }[args.command](args, config)
