@@ -61,7 +61,7 @@ def cmd_create(args, config):
     sys.stdout.write("[ok]\n")
     
     text = "Creating instance on Gondor... "
-    url = "http://gondor.io/create/"
+    url = "http://api.gondor.io/create/"
     mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
     mgr.add_password(None, url, config["username"], config["password"])
     opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
@@ -114,7 +114,7 @@ def cmd_deploy(args, config):
         
         text = "Pushing tarball to Gondor... "
         sys.stdout.write(text)
-        url = "http://gondor.io/deploy/"
+        url = "http://api.gondor.io/deploy/"
         mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
         mgr.add_password(None, url, config["username"], config["password"])
         opener = urllib2.build_opener(
@@ -157,7 +157,7 @@ def cmd_sqldump(args, config):
     # request SQL dump and stream the response through uncompression
     
     d = zlib.decompressobj(16+zlib.MAX_WBITS)
-    sql_url = "http://gondor.io/sqldump/"
+    sql_url = "http://api.gondor.io/sqldump/"
     mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
     mgr.add_password(None, sql_url, config["username"], config["password"])
     opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
