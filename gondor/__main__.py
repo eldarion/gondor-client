@@ -17,6 +17,11 @@ from gondor import http, utils
 
 
 def cmd_init(args, config):
+    site_key = args.site_key[0]
+    if len(site_key) < 11:
+        sys.stderr.write("The site key given is too short.\n")
+        sys.exit(1)
+    
     # ensure os.getcwd() is a Django directory
     files = [
         os.path.join(os.getcwd(), "__init__.py"),
@@ -34,7 +39,7 @@ def cmd_init(args, config):
         # write out a .gondor/config INI file
         new_config = ConfigParser.RawConfigParser()
         new_config.add_section("gondor")
-        new_config.set("gondor", "site_key", args.site_key[0])
+        new_config.set("gondor", "site_key", site_key)
         with open(os.path.join(gondor_dir, "config"), "wb") as cf:
             new_config.write(cf)
 
