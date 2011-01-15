@@ -28,7 +28,7 @@ def cmd_deploy(args, config):
         sys.stdout.write("Reading configuration... ")
         local_config = ConfigParser.RawConfigParser()
         local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
-        client_key = local_config.get("gondor", "client_key")
+        client_key = local_config.get("gondor", "site_key")
         sys.stdout.write("[ok]\n")
         
         sha = utils.check_output("git rev-parse %s" % commit).strip()
@@ -53,7 +53,7 @@ def cmd_deploy(args, config):
         )
         params = {
             "version": __version__,
-            "client_key": client_key,
+            "site_key": client_key,
             "label": label,
             "sha": sha,
             "commit": commit,
@@ -81,7 +81,7 @@ def cmd_sqldump(args, config):
     
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
-    client_key = local_config.get("gondor", "client_key")
+    client_key = local_config.get("gondor", "site_key")
     
     # request SQL dump and stream the response through uncompression
     
@@ -92,7 +92,7 @@ def cmd_sqldump(args, config):
     opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
     params = {
         "version": __version__,
-        "client_key": client_key,
+        "site_key": client_key,
         "label": label,
     }
     response = opener.open(sql_url, urllib.urlencode(params))
