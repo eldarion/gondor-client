@@ -31,7 +31,7 @@ def cmd_init(args, config):
         sys.stderr.write("You must run gondor init from a Django project directory.\n")
         sys.exit(1)
     
-    gondor_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir, ".gondor"))
+    gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
     
     if not os.path.exists(gondor_dir):
         os.mkdir(gondor_dir)
