@@ -17,17 +17,24 @@ from gondor import http, utils
 
 
 def cmd_init(args, config):
-    gondor_dir = os.path.join(os.getcwd(), ".gondor")
+    # ensure os.getcwd() is a Django directory
+    files = [
+        os.path.join(os.getcwd(), "__init__.py"),
+        os.path.join(os.getcwd(), "manage.py")
+    ]
+    if not all([os.path.exists(f) for f in files]):
+        sys.stderr.write("You must run gondor init from a Django project directory.\n")
+        sys.exit(1)
+    gondor_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir, ".gondor"))
     if not os.path.exists(gondor_dir):
         os.mkdir(gondor_dir)
-        if True: # @@@ allow turning off the auto commit
-            if os.path.join(os.getcwd(), ".git"):
-                # git add .gondor
-                # git commit -m "gondor init"
-                pass
-            if os.path.join(os.getcwd(), ".hg"):
-                # whatever the heck the equivlent is in hg
-                pass
+        
+        # write out a .gondor/config INI file
+        new_config = ConfigParser.RawConfigParser()
+        new_config.add_section("gondor")
+        new_config.set("gondor", "site_key", args.site_key[0])
+        with open(os.path.join(gondor_dir, "config"), "wb") as cf:
+            new_config.write(cf)
 
 
 def cmd_deploy(args, config):
@@ -127,7 +134,7 @@ def main():
     
     # cmd: init
     parser_init = command_parsers.add_parser("init")
-    parser_init.add_argument("client_key", nargs=1)
+    parser_init.add_argument("site_key", nargs=1)
     
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
