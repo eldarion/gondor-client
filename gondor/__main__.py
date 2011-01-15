@@ -16,6 +16,34 @@ from gondor import __version__
 from gondor import http, utils
 
 
+def cmd_init(args, config):
+    site_key = args.site_key[0]
+    if len(site_key) < 11:
+        sys.stderr.write("The site key given is too short.\n")
+        sys.exit(1)
+    
+    # ensure os.getcwd() is a Django directory
+    files = [
+        os.path.join(os.getcwd(), "__init__.py"),
+        os.path.join(os.getcwd(), "manage.py")
+    ]
+    if not all([os.path.exists(f) for f in files]):
+        sys.stderr.write("You must run gondor init from a Django project directory.\n")
+        sys.exit(1)
+    
+    gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
+    
+    if not os.path.exists(gondor_dir):
+        os.mkdir(gondor_dir)
+        
+        # write out a .gondor/config INI file
+        new_config = ConfigParser.RawConfigParser()
+        new_config.add_section("gondor")
+        new_config.set("gondor", "site_key", site_key)
+        with open(os.path.join(gondor_dir, "config"), "wb") as cf:
+            new_config.write(cf)
+
+
 def cmd_deploy(args, config):
     label = args.label[0]
     commit = args.commit[0]
@@ -111,6 +139,10 @@ def main():
     
     command_parsers = parser.add_subparsers(dest="command")
     
+    # cmd: init
+    parser_init = command_parsers.add_parser("init")
+    parser_init.add_argument("site_key", nargs=1)
+    
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
     parser_deploy.add_argument("label", nargs=1)
@@ -132,6 +164,7 @@ def main():
     }
     
     {
+        "init": cmd_init,
         "deploy": cmd_deploy,
         "sqldump": cmd_sqldump
     }[args.command](args, config)
