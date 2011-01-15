@@ -3,6 +3,7 @@ import ConfigParser
 import os
 import subprocess
 import sys
+import urllib
 import urllib2
 import zlib
 
@@ -30,29 +31,33 @@ def cmd_init(args, config):
 
 
 def cmd_deploy(args, config):
-    label = args.domain[0]
+    label = args.label[0]
     commit = args.commit[0]
     
     gondor_dirname = ".gondor"
-    repo_root = utils.find_nearest(os.cwd(), gondor_dirname)
+    repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     tarball = None
     
     try:
         sys.stdout.write("Reading configuration... ")
-        config = ConfigParser.RawConfigParser()
-        config.read(os.path.join(repo_root, gondor_dirname))
-        client_key = config.get("gondor", "client_key")
+        local_config = ConfigParser.RawConfigParser()
+        local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
+        client_key = local_config.get("gondor", "site_key")
         sys.stdout.write("[ok]\n")
         
+        sha = utils.check_output("git rev-parse %s" % commit).strip()
+        if commit == "HEAD":
+            commit = sha
+        
         sys.stdout.write("Building tarball from %s... " % commit)
-        tarball = os.path.abspath(os.path.join(repo_root, "%s.tar.gz" % domain))
+        tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
         cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
         subprocess.call([cmd], shell=True)
         sys.stdout.write("[ok]\n")
         
         text = "Pushing tarball to Gondor... "
         sys.stdout.write(text)
-        url = "http://gondor.eldarion.com/deploy/"
+        url = "http://gondor.io/deploy/"
         mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
         mgr.add_password(None, url, config["username"], config["password"])
         opener = urllib2.build_opener(
@@ -61,8 +66,11 @@ def cmd_deploy(args, config):
             http.UploadProgressHandler
         )
         params = {
-            "client_key": client_key,
+            "version": __version__,
+            "site_key": client_key,
             "label": label,
+            "sha": sha,
+            "commit": commit,
             "tarball": open(tarball, "rb"),
         }
         response = opener.open(url, params)
@@ -80,16 +88,28 @@ def cmd_deploy(args, config):
 
 
 def cmd_sqldump(args, config):
-    domain = args.domain[0]
+    label = args.label[0]
+    
+    gondor_dirname = ".gondor"
+    repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    
+    local_config = ConfigParser.RawConfigParser()
+    local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
+    client_key = local_config.get("gondor", "site_key")
     
     # request SQL dump and stream the response through uncompression
     
     d = zlib.decompressobj(16+zlib.MAX_WBITS)
-    sql_url = "http://gondor.eldarion.com/sqldump/%s" % domain
+    sql_url = "http://gondor.io/sqldump/"
     mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
     mgr.add_password(None, sql_url, config["username"], config["password"])
     opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
-    response = opener.open(sql_url)
+    params = {
+        "version": __version__,
+        "site_key": client_key,
+        "label": label,
+    }
+    response = opener.open(sql_url, urllib.urlencode(params))
     cs = 16 * 1024
     while True:
         chunk = response.read(cs)
@@ -116,7 +136,7 @@ def main():
     
     # cmd: sqldump
     parser_sqldump = command_parsers.add_parser("sqldump")
-    parser_sqldump.add_argument("domain", nargs=1)
+    parser_sqldump.add_argument("label", nargs=1)
     
     args = parser.parse_args()
     
