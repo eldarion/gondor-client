@@ -133,12 +133,17 @@ def cmd_deploy(args, config):
         response = opener.open(url, params)
         data = json.loads(response.read())
         if data["status"] == "error":
-            message = data["message"]
+            message = "error"
         elif data["status"] == "success":
             message = "ok"
         else:
             message = "unknown"
         sys.stdout.write("\r%s[%s]   \n" % (text, message))
+        if data["status"] == "success":
+            if "url" in data:
+                sys.stdout.write("\nVisit: %s\n" % data["url"])
+        else:
+            sys.stdout.write("\nError: %s\n" % data["message"])
     finally:
         if tarball:
             os.unlink(tarball)
