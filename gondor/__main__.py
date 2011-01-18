@@ -40,13 +40,18 @@ def cmd_init(args, config):
         new_config = ConfigParser.RawConfigParser()
         new_config.add_section("gondor")
         new_config.set("gondor", "site_key", site_key)
+        new_config.set("gondor", "vcs", "git")
         with open(os.path.join(gondor_dir, "config"), "wb") as cf:
             new_config.write(cf)
 
 
 def cmd_create(args, config):
     gondor_dirname = ".gondor"
-    repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    try:
+        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    except OSError:
+        sys.stderr.write("Unable to find a .gondor directory.\n")
+        sys.exit(1)
     
     label = args.label[0]
     
@@ -56,7 +61,7 @@ def cmd_create(args, config):
     
     sys.stdout.write("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
-    local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
+    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
     site_key = local_config.get("gondor", "site_key")
     sys.stdout.write("[ok]\n")
     
@@ -70,6 +75,7 @@ def cmd_create(args, config):
         "site_key": site_key,
         "label": label,
         "kind": kind,
+        "project_root": os.path.basename(project_root),
     }
     response = opener.open(url, urllib.urlencode(params))
     data = json.loads(response.read())
@@ -92,23 +98,37 @@ def cmd_deploy(args, config):
     commit = args.commit[0]
     
     gondor_dirname = ".gondor"
-    repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    try:
+        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    except OSError:
+        sys.stderr.write("Unable to find a .gondor directory.\n")
+        sys.exit(1)
+    
     tarball = None
     
     try:
         sys.stdout.write("Reading configuration... ")
         local_config = ConfigParser.RawConfigParser()
-        local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
+        local_config.read(os.path.join(project_root, gondor_dirname, "config"))
         site_key = local_config.get("gondor", "site_key")
+        vcs = local_config.get("gondor", "vcs")
         sys.stdout.write("[ok]\n")
         
-        sha = utils.check_output("git rev-parse %s" % commit).strip()
-        if commit == "HEAD":
-            commit = sha
+        if vcs == "git":
+            try:
+                repo_root = utils.find_nearest(os.getcwd(), ".git")
+            except OSError:
+                sys.stderr.write("Unable to find a .git directory.\n")
+                sys.exit(1)
+            sha = utils.check_output("git rev-parse %s" % commit).strip()
+            if commit == "HEAD":
+                commit = sha
+            tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
+            cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
+        else:
+            raise NotImplementedError()
         
         sys.stdout.write("Building tarball from %s... " % commit)
-        tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
-        cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
         subprocess.call([cmd], shell=True)
         sys.stdout.write("[ok]\n")
         
@@ -129,6 +149,7 @@ def cmd_deploy(args, config):
             "sha": sha,
             "commit": commit,
             "tarball": open(tarball, "rb"),
+            "project_root": os.path.basename(project_root),
         }
         response = opener.open(url, params)
         data = json.loads(response.read())
