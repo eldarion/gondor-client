@@ -202,6 +202,49 @@ def cmd_sqldump(args, config):
         sys.stdout.flush()
 
 
+def cmd_addon(args, config):
+    
+    addon_label = args.addon_label[0]
+    instance_label = args.instance_label[0]
+    
+    gondor_dirname = ".gondor"
+    try:
+        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    except OSError:
+        sys.stderr.write("Unable to find a .gondor directory.\n")
+        sys.exit(1)
+    
+    sys.stdout.write("Reading configuration... ")
+    local_config = ConfigParser.RawConfigParser()
+    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
+    site_key = local_config.get("gondor", "site_key")
+    sys.stdout.write("[ok]\n")
+    
+    text = "Adding addon to your instance... "
+    sys.stdout.write(text)
+    url = "http://api.gondor.io/addon/"
+    mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+    mgr.add_password(None, url, config["username"], config["password"])
+    opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
+    params = {
+        "version": __version__,
+        "site_key": site_key,
+        "addon_label": addon_label,
+        "instance_label": instance_label,
+    }
+    response = opener.open(url, urllib.urlencode(params))
+    data = json.loads(response.read())
+    if data["status"] == "error":
+        message = "error"
+    elif data["status"] == "success":
+        message = "ok"
+    else:
+        message = "unknown"
+    sys.stdout.write("\r%s[%s]   \n" % (text, message))
+    if data["status"] == "error":
+        sys.stdout.write("\nError: %s\n" % data["message"])
+
+
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
@@ -226,6 +269,11 @@ def main():
     parser_sqldump = command_parsers.add_parser("sqldump")
     parser_sqldump.add_argument("label", nargs=1)
     
+    # cmd: addon
+    parser_addon = command_parsers.add_parser("addon")
+    parser_addon.add_argument("addon_label", nargs=1)
+    parser_addon.add_argument("instance_label", nargs=1)
+    
     args = parser.parse_args()
     
     # config
@@ -241,5 +289,6 @@ def main():
         "init": cmd_init,
         "create": cmd_create,
         "deploy": cmd_deploy,
-        "sqldump": cmd_sqldump
+        "sqldump": cmd_sqldump,
+        "addon": cmd_addon
     }[args.command](args, config)
