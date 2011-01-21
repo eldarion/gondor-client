@@ -4,6 +4,7 @@ import ConfigParser
 import os
 import subprocess
 import sys
+import time
 import urllib
 import urllib2
 import zlib
@@ -154,7 +155,6 @@ def cmd_deploy(args, config):
             "commit": commit,
             "tarball": open(tarball, "rb"),
             "project_root": os.path.basename(project_root),
-            "debug_mode": "t",
         }
         request = urllib2.Request(url, params)
         request.add_unredirected_header(
@@ -167,8 +167,48 @@ def cmd_deploy(args, config):
         if data["status"] == "error":
             out("\nError: %s\n" % data["message"])
         if data["status"] == "success":
+            deployment_id = data["deployment"]
             if "url" in data:
-                out("\nVisit: %s\n" % data["url"])
+                instance_url = data["url"]
+            else:
+                instance_url = None
+            
+            # poll status of the deployment
+            out("Deploying... ")
+            while True:
+                params = {
+                    "version": __version__,
+                    "site_key": site_key,
+                    "instance_label": label,
+                    "deployment_id": deployment_id,
+                }
+                url = "http://api.gondor.io/deployment_status/"
+                request = urllib2.Request(url, urllib.urlencode(params))
+                request.add_unredirected_header(
+                    "Authorization",
+                    "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
+                )
+                response = urllib2.urlopen(request)
+                data = json.loads(response.read())
+                if data["status"] == "error":
+                    out("[error]\n")
+                    out("\nError: %s\n" % data["message"])
+                if data["status"] == "success":
+                    if data["state"] == "deployed":
+                        out("[ok]\n")
+                        if instance_url:
+                            out("\nVisit: %s\n" % instance_url)
+                        break
+                    elif data["state"] == "failed":
+                        out("[failed]\n")
+                        out("\nYour deployment has failed. We are working on adding reporting interfaces for why. Please contact Brian.\n")
+                        break
+                    elif data["state"] == "locked":
+                        out("[locked]\n")
+                        out("\nYour deployment failed due to being locked. This means there is another deployment already in progress.\n")
+                        break
+                    else:
+                        time.sleep(1)
     finally:
         if tarball:
             os.unlink(tarball)
