@@ -1,4 +1,5 @@
 import argparse
+import base64
 import ConfigParser
 import os
 import subprocess
@@ -67,9 +68,6 @@ def cmd_create(args, config):
     
     text = "Creating instance on Gondor... "
     url = "http://api.gondor.io/create/"
-    mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-    mgr.add_password(None, url, config["username"], config["password"])
-    opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
     params = {
         "version": __version__,
         "site_key": site_key,
@@ -77,7 +75,12 @@ def cmd_create(args, config):
         "kind": kind,
         "project_root": os.path.basename(project_root),
     }
-    response = opener.open(url, urllib.urlencode(params))
+    request = urllib2.Request(url, urllib.urlencode(params))
+    request.add_unredirected_header(
+        "Authorization",
+        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
+    )
+    response = urllib2.urlopen(request)
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -135,10 +138,7 @@ def cmd_deploy(args, config):
         text = "Pushing tarball to Gondor... "
         sys.stdout.write(text)
         url = "http://api.gondor.io/deploy/"
-        mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        mgr.add_password(None, url, config["username"], config["password"])
         opener = urllib2.build_opener(
-            urllib2.HTTPBasicAuthHandler(mgr),
             http.MultipartPostHandler,
             http.UploadProgressHandler
         )
@@ -151,7 +151,12 @@ def cmd_deploy(args, config):
             "tarball": open(tarball, "rb"),
             "project_root": os.path.basename(project_root),
         }
-        response = opener.open(url, params)
+        request = urllib2.Request(url, params)
+        request.add_unredirected_header(
+            "Authorization",
+            "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
+        )
+        response = opener.open(request)
         data = json.loads(response.read())
         if data["status"] == "error":
             message = "error"
@@ -183,16 +188,18 @@ def cmd_sqldump(args, config):
     # request SQL dump and stream the response through uncompression
     
     d = zlib.decompressobj(16+zlib.MAX_WBITS)
-    sql_url = "http://api.gondor.io/sqldump/"
-    mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-    mgr.add_password(None, sql_url, config["username"], config["password"])
-    opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
+    url = "http://api.gondor.io/sqldump/"
     params = {
         "version": __version__,
         "site_key": site_key,
         "label": label,
     }
-    response = opener.open(sql_url, urllib.urlencode(params))
+    request = urllib2.Request(url, urllib.urlencode(params))
+    request.add_unredirected_header(
+        "Authorization",
+        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
+    )
+    response = urllib2.urlopen(request)
     cs = 16 * 1024
     while True:
         chunk = response.read(cs)
@@ -223,16 +230,18 @@ def cmd_addon(args, config):
     text = "Adding addon to your instance... "
     sys.stdout.write(text)
     url = "http://api.gondor.io/addon/"
-    mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-    mgr.add_password(None, url, config["username"], config["password"])
-    opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(mgr))
     params = {
         "version": __version__,
         "site_key": site_key,
         "addon_label": addon_label,
         "instance_label": instance_label,
     }
-    response = opener.open(url, urllib.urlencode(params))
+    request = urllib2.Request(url, urllib.urlencode(params))
+    request.add_unredirected_header(
+        "Authorization",
+        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
+    )
+    response = urllib2.urlopen(request)
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
