@@ -15,6 +15,10 @@ except ImportError:
 
 from gondor import __version__
 from gondor import http, utils
+from gondor.progressbar import ProgressBar
+
+
+out = utils.out
 
 
 def cmd_init(args, config):
@@ -60,11 +64,11 @@ def cmd_create(args, config):
     if kind is None:
         kind = "dev"
     
-    sys.stdout.write("Reading configuration... ")
+    out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
     site_key = local_config.get("gondor", "site_key")
-    sys.stdout.write("[ok]\n")
+    out("[ok]\n")
     
     text = "Creating instance on Gondor... "
     url = "http://api.gondor.io/create/"
@@ -88,12 +92,12 @@ def cmd_create(args, config):
         message = "ok"
     else:
         message = "unknown"
-    sys.stdout.write("\r%s[%s]   \n" % (text, message))
+    out("\r%s[%s]   \n" % (text, message))
     if data["status"] == "success":
-        sys.stdout.write("\nRun: gondor deploy %s HEAD" % label)
-        sys.stdout.write("\nVisit: %s\n" % data["url"])
+        out("\nRun: gondor deploy %s HEAD" % label)
+        out("\nVisit: %s\n" % data["url"])
     else:
-        sys.stdout.write("\nError: %s\n" % data["message"])
+        out("\nError: %s\n" % data["message"])
 
 
 def cmd_deploy(args, config):
@@ -110,12 +114,12 @@ def cmd_deploy(args, config):
     tarball = None
     
     try:
-        sys.stdout.write("Reading configuration... ")
+        out("Reading configuration... ")
         local_config = ConfigParser.RawConfigParser()
         local_config.read(os.path.join(project_root, gondor_dirname, "config"))
         site_key = local_config.get("gondor", "site_key")
         vcs = local_config.get("gondor", "vcs")
-        sys.stdout.write("[ok]\n")
+        out("[ok]\n")
         
         if vcs == "git":
             try:
@@ -131,16 +135,16 @@ def cmd_deploy(args, config):
         else:
             raise NotImplementedError()
         
-        sys.stdout.write("Building tarball from %s... " % commit)
+        out("Building tarball from %s... " % commit)
         subprocess.call([cmd], shell=True)
-        sys.stdout.write("[ok]\n")
+        out("[ok]\n")
         
-        text = "Pushing tarball to Gondor... "
-        sys.stdout.write(text)
+        pb = ProgressBar(0, 100, 77)
+        out("Pushing tarball to Gondor... \n")
         url = "http://api.gondor.io/deploy/"
         opener = urllib2.build_opener(
             http.MultipartPostHandler,
-            http.UploadProgressHandler
+            http.UploadProgressHandler(pb)
         )
         params = {
             "version": __version__,
@@ -150,6 +154,7 @@ def cmd_deploy(args, config):
             "commit": commit,
             "tarball": open(tarball, "rb"),
             "project_root": os.path.basename(project_root),
+            "debug_mode": "t",
         }
         request = urllib2.Request(url, params)
         request.add_unredirected_header(
@@ -157,19 +162,13 @@ def cmd_deploy(args, config):
             "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
         )
         response = opener.open(request)
+        out("\n")
         data = json.loads(response.read())
         if data["status"] == "error":
-            message = "error"
-        elif data["status"] == "success":
-            message = "ok"
-        else:
-            message = "unknown"
-        sys.stdout.write("\r%s[%s]   \n" % (text, message))
+            out("\nError: %s\n" % data["message"])
         if data["status"] == "success":
             if "url" in data:
-                sys.stdout.write("\nVisit: %s\n" % data["url"])
-        else:
-            sys.stdout.write("\nError: %s\n" % data["message"])
+                out("\nVisit: %s\n" % data["url"])
     finally:
         if tarball:
             os.unlink(tarball)
@@ -205,8 +204,7 @@ def cmd_sqldump(args, config):
         chunk = response.read(cs)
         if not chunk:
             break
-        sys.stdout.write(d.decompress(chunk))
-        sys.stdout.flush()
+        out(d.decompress(chunk))
 
 
 def cmd_addon(args, config):
@@ -221,14 +219,14 @@ def cmd_addon(args, config):
         sys.stderr.write("Unable to find a .gondor directory.\n")
         sys.exit(1)
     
-    sys.stdout.write("Reading configuration... ")
+    out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
     site_key = local_config.get("gondor", "site_key")
-    sys.stdout.write("[ok]\n")
+    out("[ok]\n")
     
     text = "Adding addon to your instance... "
-    sys.stdout.write(text)
+    out(text)
     url = "http://api.gondor.io/addon/"
     params = {
         "version": __version__,
@@ -249,9 +247,9 @@ def cmd_addon(args, config):
         message = "ok"
     else:
         message = "unknown"
-    sys.stdout.write("\r%s[%s]   \n" % (text, message))
+    out("\r%s[%s]   \n" % (text, message))
     if data["status"] == "error":
-        sys.stdout.write("\nError: %s\n" % data["message"])
+        out("\nError: %s\n" % data["message"])
 
 
 def main():

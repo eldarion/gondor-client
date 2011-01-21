@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 
 def check_output(cmd):
@@ -17,3 +18,8 @@ def find_nearest(directory, search):
         if os.path.isdir(os.path.join(d, search)):
             return d
     raise OSError
+
+
+def out(msg):
+    sys.stdout.write(msg)
+    sys.stdout.flush()

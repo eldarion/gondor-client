@@ -10,40 +10,38 @@ import urllib2
 
 from cStringIO import StringIO
 
-
 ucb = None # upload callback
 ubs = None # upload bytes sent
 ubt = None # upload bytes total
 
 
-def ucb(ubt, ubs):
-    text = "Pushing tarball to Gondor... "
-    sys.stdout.write("\r%s[%.0f%%]  " % (text, (float(ubs) / ubt) * 100))
+def HTTPConnection(pb):
+    class _HTTPConnection(httplib.HTTPConnection):
+        def send(self, buf):
+            global ubt, ubs
+            ubs = 0
+            ubt = send_length = len(buf)
+            cs = 8192
+            prev = 0
+            while ubs < send_length:
+                percentage = int(round((float(ubs) / ubt) * 100))
+                pb.updateAmount(percentage)
+                if percentage != prev:
+                    sys.stdout.write("%s\r" % pb)
+                    sys.stdout.flush()
+                    prev = percentage
+                t1 = time.time()
+                httplib.HTTPConnection.send(self, buf[ubs:ubs+cs])
+                ubs += cs
+                t2 = time.time()
+    return _HTTPConnection
 
 
-class HTTPConnection(httplib.HTTPConnection):
-    
-    def send(self, buf):
-        global ubt, ubs
-        ubs = 0
-        ubt = send_length = len(buf)
-        cs = 8192
-        while ubs < send_length:
-            if ucb:
-                ucb(ubt, ubs)
-            sys.stdout.flush()
-            t1 = time.time()
-            httplib.HTTPConnection.send(self, buf[ubs:ubs+cs])
-            ubs += cs
-            t2 = time.time()
-        if ucb:
-            ucb(1, 1)
-
-
-class UploadProgressHandler(urllib2.HTTPHandler):
-    
-    def http_open(self, request):
-        return self.do_open(HTTPConnection, request)
+def UploadProgressHandler(pb):
+    class _UploadProgressHandler(urllib2.HTTPHandler):
+        def http_open(self, request):
+            return self.do_open(HTTPConnection(pb), request)
+    return _UploadProgressHandler
 
 
 class MultipartPostHandler(urllib2.BaseHandler):
