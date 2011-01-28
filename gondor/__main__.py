@@ -201,7 +201,7 @@ def cmd_deploy(args, config):
                         break
                     elif data["state"] == "failed":
                         out("[failed]\n")
-                        out("\nYour deployment has failed. We are working on adding reporting interfaces for why. Please contact Brian.\n")
+                        out("\n%s\n" % data["reason"])
                         break
                     elif data["state"] == "locked":
                         out("[locked]\n")
