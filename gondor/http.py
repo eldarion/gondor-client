@@ -34,6 +34,11 @@ def HTTPConnection(pb):
                 httplib.HTTPConnection.send(self, buf[ubs:ubs+cs])
                 ubs += cs
                 t2 = time.time()
+            # once we are done uploading the file set the progress bar to
+            # 100% as sometimes it never gets full
+            pb.updateAmount(100)
+            sys.stdout.write("%s\r" % pb)
+            sys.stdout.flush()
     return _HTTPConnection
 
 
