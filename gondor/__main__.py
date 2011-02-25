@@ -78,11 +78,12 @@ def cmd_create(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
+    endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
     text = "Creating instance on Gondor... "
-    url = "http://api.gondor.io/create/"
+    url = "http://%s/create/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
@@ -128,6 +129,7 @@ def cmd_deploy(args, config):
         out("Reading configuration... ")
         local_config = ConfigParser.RawConfigParser()
         local_config.read(os.path.join(project_root, gondor_dirname, "config"))
+        endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
         site_key = local_config.get("gondor", "site_key")
         vcs = local_config.get("gondor", "vcs")
         out("[ok]\n")
@@ -152,7 +154,7 @@ def cmd_deploy(args, config):
         
         pb = ProgressBar(0, 100, 77)
         out("Pushing tarball to Gondor... \n")
-        url = "http://api.gondor.io/deploy/"
+        url = "http://%s/deploy/" % endpoint
         opener = urllib2.build_opener(
             http.MultipartPostHandler,
             http.UploadProgressHandler(pb)
@@ -192,7 +194,7 @@ def cmd_deploy(args, config):
                     "instance_label": label,
                     "deployment_id": deployment_id,
                 }
-                url = "http://api.gondor.io/deployment_status/"
+                url = "http://%s/deployment_status/" % endpoint
                 request = urllib2.Request(url, urllib.urlencode(params))
                 request.add_unredirected_header(
                     "Authorization",
@@ -232,12 +234,13 @@ def cmd_sqldump(args, config):
     
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
+    endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     
     # request SQL dump and stream the response through uncompression
     
     d = zlib.decompressobj(16+zlib.MAX_WBITS)
-    url = "http://api.gondor.io/sqldump/"
+    url = "http://%s/sqldump/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
@@ -272,12 +275,13 @@ def cmd_addon(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
+    endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
     text = "Adding addon to your instance... "
     out(text)
-    url = "http://api.gondor.io/addon/"
+    url = "http://%s/addon/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
@@ -318,6 +322,7 @@ def cmd_run(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
+    endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
@@ -365,7 +370,7 @@ def cmd_run(args, config):
         }
     
     out("Executing... ")
-    url = "http://api.gondor.io/run/"
+    url = "http://%s/run/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
@@ -393,7 +398,7 @@ def cmd_run(args, config):
                 "instance_label": instance_label,
                 "deployment_id": task_id,
             }
-            url = "http://api.gondor.io/task_status/"
+            url = "http://%s/task_status/" % endpoint
             request = urllib2.Request(url, urllib.urlencode(params))
             request.add_unredirected_header(
                 "Authorization",
