@@ -78,7 +78,10 @@ def cmd_create(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
+    try:
+        endpoint = local_config.get("gondor", "endpoint")
+    except ConfigParser.NoOptionError:
+        endpoint = "api.gondor.io"
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
@@ -129,7 +132,10 @@ def cmd_deploy(args, config):
         out("Reading configuration... ")
         local_config = ConfigParser.RawConfigParser()
         local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-        endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
+        try:
+            endpoint = local_config.get("gondor", "endpoint")
+        except ConfigParser.NoOptionError:
+            endpoint = "api.gondor.io"
         site_key = local_config.get("gondor", "site_key")
         vcs = local_config.get("gondor", "vcs")
         out("[ok]\n")
@@ -234,7 +240,10 @@ def cmd_sqldump(args, config):
     
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
-    endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
+    try:
+        endpoint = local_config.get("gondor", "endpoint")
+    except ConfigParser.NoOptionError:
+        endpoint = "api.gondor.io"
     site_key = local_config.get("gondor", "site_key")
     
     # request SQL dump and stream the response through uncompression
@@ -275,7 +284,10 @@ def cmd_addon(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
+    try:
+        endpoint = local_config.get("gondor", "endpoint")
+    except ConfigParser.NoOptionError:
+        endpoint = "api.gondor.io"
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
@@ -322,7 +334,10 @@ def cmd_run(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = local_config.get("gondor", "endpoint", "api.gondor.io")
+    try:
+        endpoint = local_config.get("gondor", "endpoint")
+    except ConfigParser.NoOptionError:
+        endpoint = "api.gondor.io"
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
