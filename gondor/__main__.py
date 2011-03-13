@@ -206,7 +206,11 @@ def cmd_deploy(args, config):
                     "Authorization",
                     "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
                 )
-                response = urllib2.urlopen(request)
+                try:
+                    response = urllib2.urlopen(request)
+                except urllib2.URLError:
+                    # @@@ add max retries
+                    continue
                 data = json.loads(response.read())
                 if data["status"] == "error":
                     out("[error]\n")
