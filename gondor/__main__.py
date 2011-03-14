@@ -444,6 +444,57 @@ def cmd_run(args, config):
                     time.sleep(2)
 
 
+def cmd_delete(args, config):
+    
+    instance_label = args.label[0]
+    
+    gondor_dirname = ".gondor"
+    try:
+        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    except OSError:
+        sys.stderr.write("Unable to find a .gondor directory.\n")
+        sys.exit(1)
+    
+    out("Reading configuration... ")
+    local_config = ConfigParser.RawConfigParser()
+    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
+    try:
+        endpoint = local_config.get("gondor", "endpoint")
+    except ConfigParser.NoOptionError:
+        endpoint = "api.gondor.io"
+    site_key = local_config.get("gondor", "site_key")
+    out("[ok]\n")
+    
+    text = "ARE YOU SURE YOU WANT TO DELETE YOUR INSTANCE? "
+    out(text)
+    user_input = raw_input()
+    if user_input != "YES":
+        sys.exit(0)
+    
+    url = "http://%s/delete/" % endpoint
+    params = {
+        "version": __version__,
+        "site_key": site_key,
+        "instance_label": instance_label,
+    }
+    request = urllib2.Request(url, urllib.urlencode(params))
+    request.add_unredirected_header(
+        "Authorization",
+        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
+    )
+    response = urllib2.urlopen(request)
+    data = json.loads(response.read())
+    if data["status"] == "error":
+        message = "error"
+    elif data["status"] == "success":
+        message = "ok"
+    else:
+        message = "unknown"
+    out("\r%s[%s]   \n" % (text, message))
+    if data["status"] == "error":
+        out("\nError: %s\n" % data["message"])
+
+
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
@@ -478,6 +529,10 @@ def main():
     parser_run.add_argument("instance_label", nargs=1)
     parser_run.add_argument("command_", nargs=1)
     
+    # cmd: delete
+    parser_delete = command_parsers.add_parser("delete")
+    parser_delete.add_argument("label", nargs=1)
+    
     args = parser.parse_args()
     
     # config
@@ -495,5 +550,6 @@ def main():
         "deploy": cmd_deploy,
         "sqldump": cmd_sqldump,
         "addon": cmd_addon,
-        "run": cmd_run
+        "run": cmd_run,
+        "delete": cmd_delete,
     }[args.command](args, config)
