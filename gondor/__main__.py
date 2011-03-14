@@ -470,6 +470,7 @@ def cmd_delete(args, config):
     user_input = raw_input()
     if user_input != "YES":
         sys.exit(0)
+    text = "Deleting... "
     
     url = "http://%s/delete/" % endpoint
     params = {
