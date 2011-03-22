@@ -32,6 +32,13 @@ EMAIL_RE = re.compile(
     re.IGNORECASE)
 
 
+def config_value(config, section, key, default=None):
+    try:
+        return config.get(section, key)
+    except ConfigParser.NoOptionError:
+        return default
+
+
 def cmd_init(args, config):
     site_key = args.site_key[0]
     if len(site_key) < 11:
@@ -57,6 +64,9 @@ def cmd_init(args, config):
         new_config.add_section("gondor")
         new_config.set("gondor", "site_key", site_key)
         new_config.set("gondor", "vcs", "git")
+        new_config.set("app", "requirements_file", "requirements/project.txt")
+        new_config.set("app", "wsgi_entry_point", "deploy.wsgi")
+        new_config.set("app", "migrations", "none")
         with open(os.path.join(gondor_dir, "config"), "wb") as cf:
             new_config.write(cf)
 
@@ -78,10 +88,7 @@ def cmd_create(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    try:
-        endpoint = local_config.get("gondor", "endpoint")
-    except ConfigParser.NoOptionError:
-        endpoint = "api.gondor.io"
+    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
@@ -132,12 +139,14 @@ def cmd_deploy(args, config):
         out("Reading configuration... ")
         local_config = ConfigParser.RawConfigParser()
         local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-        try:
-            endpoint = local_config.get("gondor", "endpoint")
-        except ConfigParser.NoOptionError:
-            endpoint = "api.gondor.io"
+        endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
         site_key = local_config.get("gondor", "site_key")
         vcs = local_config.get("gondor", "vcs")
+        app_config = {
+            "requirements_file": config_value(local_config, "app", "requirements_file"),
+            "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
+            "migrations": config_value(local_config, "app", "migrations"),
+        }
         out("[ok]\n")
         
         if vcs == "git":
@@ -173,6 +182,7 @@ def cmd_deploy(args, config):
             "commit": commit,
             "tarball": open(tarball, "rb"),
             "project_root": os.path.basename(project_root),
+            "app": json.dumps(app_config),
         }
         request = urllib2.Request(url, params)
         request.add_unredirected_header(
@@ -244,10 +254,7 @@ def cmd_sqldump(args, config):
     
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
-    try:
-        endpoint = local_config.get("gondor", "endpoint")
-    except ConfigParser.NoOptionError:
-        endpoint = "api.gondor.io"
+    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     
     # request SQL dump and stream the response through uncompression
@@ -288,10 +295,7 @@ def cmd_addon(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    try:
-        endpoint = local_config.get("gondor", "endpoint")
-    except ConfigParser.NoOptionError:
-        endpoint = "api.gondor.io"
+    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
@@ -338,11 +342,13 @@ def cmd_run(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    try:
-        endpoint = local_config.get("gondor", "endpoint")
-    except ConfigParser.NoOptionError:
-        endpoint = "api.gondor.io"
+    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
+    app_config = {
+        "requirements_file": config_value(local_config, "app", "requirements_file"),
+        "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
+        "migrations": config_value(local_config, "app", "migrations"),
+    }
     out("[ok]\n")
     
     if command == "createsuperuser":
@@ -396,6 +402,7 @@ def cmd_run(args, config):
         "instance_label": instance_label,
         "command": command,
         "params": json.dumps(params),
+        "app": json.dumps(app_config),
     }
     request = urllib2.Request(url, urllib.urlencode(params))
     request.add_unredirected_header(
@@ -458,10 +465,7 @@ def cmd_delete(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    try:
-        endpoint = local_config.get("gondor", "endpoint")
-    except ConfigParser.NoOptionError:
-        endpoint = "api.gondor.io"
+    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
@@ -509,10 +513,7 @@ def cmd_list(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    try:
-        endpoint = local_config.get("gondor", "endpoint")
-    except ConfigParser.NoOptionError:
-        endpoint = "api.gondor.io"
+    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
