@@ -35,7 +35,7 @@ EMAIL_RE = re.compile(
 def config_value(config, section, key, default=None):
     try:
         return config.get(section, key)
-    except ConfigParser.NoOptionError:
+    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
         return default
 
 
