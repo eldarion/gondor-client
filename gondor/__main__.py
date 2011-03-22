@@ -465,10 +465,10 @@ def cmd_delete(args, config):
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
-    text = "ARE YOU SURE YOU WANT TO DELETE YOUR INSTANCE? "
+    text = "ARE YOU SURE YOU WANT TO DELETE THIS INSTANCE? [Y/N] "
     out(text)
     user_input = raw_input()
-    if user_input != "YES":
+    if user_input != "Y":
         sys.exit(0)
     text = "Deleting... "
     
