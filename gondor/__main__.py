@@ -538,7 +538,7 @@ def cmd_list(args, config):
                 instance["last_deployment"]["sha"][:8]
             ))
     else:
-         out("\nError: %s\n" % data["message"])
+        out("\nError: %s\n" % data["message"])
 
 
 def main():
