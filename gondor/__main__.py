@@ -469,6 +469,7 @@ def cmd_delete(args, config):
     out(text)
     user_input = raw_input()
     if user_input != "Y":
+        out("Exiting without deleting the instance.\n")
         sys.exit(0)
     text = "Deleting... "
     
