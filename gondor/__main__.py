@@ -497,6 +497,50 @@ def cmd_delete(args, config):
         out("\nError: %s\n" % data["message"])
 
 
+def cmd_list(args, config):
+    
+    gondor_dirname = ".gondor"
+    try:
+        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    except OSError:
+        sys.stderr.write("Unable to find a .gondor directory.\n")
+        sys.exit(1)
+    
+    out("Reading configuration... ")
+    local_config = ConfigParser.RawConfigParser()
+    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
+    try:
+        endpoint = local_config.get("gondor", "endpoint")
+    except ConfigParser.NoOptionError:
+        endpoint = "api.gondor.io"
+    site_key = local_config.get("gondor", "site_key")
+    out("[ok]\n")
+    
+    url = "http://%s/list/" % endpoint
+    params = {
+        "version": __version__,
+        "site_key": site_key,
+    }
+    request = urllib2.Request(url, urllib.urlencode(params))
+    request.add_unredirected_header(
+        "Authorization",
+        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
+    )
+    response = urllib2.urlopen(request)
+    data = json.loads(response.read())
+    
+    if data["status"] == "success":
+        out("\n")
+        for instance in sorted(data["instances"], key=lambda v: v["label"]):
+            out("%s [%s] %s\n" % (
+                instance["label"],
+                instance["kind"],
+                instance["last_deployment"]["sha"][:8]
+            ))
+    else:
+        print data
+
+
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
@@ -535,6 +579,9 @@ def main():
     parser_delete = command_parsers.add_parser("delete")
     parser_delete.add_argument("label", nargs=1)
     
+    # cmd: list
+    parser_list = command_parsers.add_parser("list")
+    
     args = parser.parse_args()
     
     # config
@@ -554,4 +601,5 @@ def main():
         "addon": cmd_addon,
         "run": cmd_run,
         "delete": cmd_delete,
+        "list": cmd_list,
     }[args.command](args, config)
