@@ -64,6 +64,7 @@ def cmd_init(args, config):
         new_config.add_section("gondor")
         new_config.set("gondor", "site_key", site_key)
         new_config.set("gondor", "vcs", "git")
+        new_config.add_section("app")
         new_config.set("app", "requirements_file", "requirements/project.txt")
         new_config.set("app", "wsgi_entry_point", "deploy.wsgi")
         new_config.set("app", "migrations", "none")
