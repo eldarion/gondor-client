@@ -93,10 +93,8 @@ class HTTPSConnection(httplib.HTTPConnection):
     default_port = 443
     
     def __init__(self, host, port=None, key_file=None, cert_file=None,
-                 strict=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
-                 source_address=None):
-        httplib.HTTPConnection.__init__(self, host, port, strict, timeout,
-                                        source_address)
+                 strict=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
+        httplib.HTTPConnection.__init__(self, host, port, strict, timeout)
         self.key_file = key_file
         self.cert_file = cert_file
     
