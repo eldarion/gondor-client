@@ -17,6 +17,11 @@ setup(
     author = "Eldarion",
     author_email = "development@eldarion.com",
     packages = find_packages(),
+    package_data = {
+        "gondor": [
+            "ssl/*.crt",
+        ]
+    },
     zip_safe = False,
     entry_points = {
         "console_scripts": [

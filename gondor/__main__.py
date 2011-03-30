@@ -1,5 +1,4 @@
 import argparse
-import base64
 import ConfigParser
 import getpass
 import os
@@ -18,6 +17,7 @@ except ImportError:
 
 from gondor import __version__
 from gondor import http, utils
+from gondor.api import make_api_call
 from gondor.progressbar import ProgressBar
 
 
@@ -30,6 +30,7 @@ EMAIL_RE = re.compile(
     r'|^"([\001-\010\013\014\016-\037!#-\[\]-\177]|\\[\001-\011\013\014\016-\177])*"' # quoted-string
     r')@(?:[A-Z0-9-]+\.)+[A-Z]{2,6}$', # domain
     re.IGNORECASE)
+DEFAULT_ENDPOINT = "https://api.gondor.io"
 
 
 def config_value(config, section, key, default=None):
@@ -89,12 +90,12 @@ def cmd_create(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
+    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
     text = "Creating instance on Gondor... "
-    url = "http://%s/create/" % endpoint
+    url = "%s/create/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
@@ -102,12 +103,7 @@ def cmd_create(args, config):
         "kind": kind,
         "project_root": os.path.basename(project_root),
     }
-    request = urllib2.Request(url, urllib.urlencode(params))
-    request.add_unredirected_header(
-        "Authorization",
-        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-    )
-    response = urllib2.urlopen(request)
+    response = make_api_call(config, url, urllib.urlencode(params))
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -140,7 +136,7 @@ def cmd_deploy(args, config):
         out("Reading configuration... ")
         local_config = ConfigParser.RawConfigParser()
         local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-        endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
+        endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
         site_key = local_config.get("gondor", "site_key")
         vcs = local_config.get("gondor", "vcs")
         app_config = {
@@ -170,11 +166,7 @@ def cmd_deploy(args, config):
         
         pb = ProgressBar(0, 100, 77)
         out("Pushing tarball to Gondor... \n")
-        url = "http://%s/deploy/" % endpoint
-        opener = urllib2.build_opener(
-            http.MultipartPostHandler,
-            http.UploadProgressHandler(pb)
-        )
+        url = "%s/deploy/" % endpoint
         params = {
             "version": __version__,
             "site_key": site_key,
@@ -185,12 +177,12 @@ def cmd_deploy(args, config):
             "project_root": os.path.relpath(project_root, repo_root),
             "app": json.dumps(app_config),
         }
-        request = urllib2.Request(url, params)
-        request.add_unredirected_header(
-            "Authorization",
-            "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-        )
-        response = opener.open(request)
+        handlers = [
+            http.MultipartPostHandler,
+            http.UploadProgressHandler(pb, ssl=True),
+            http.UploadProgressHandler(pb, ssl=False)
+        ]
+        response = make_api_call(config, url, params, extra_handlers=handlers)
         out("\n")
         data = json.loads(response.read())
         if data["status"] == "error":
@@ -211,14 +203,9 @@ def cmd_deploy(args, config):
                     "instance_label": label,
                     "deployment_id": deployment_id,
                 }
-                url = "http://%s/deployment_status/" % endpoint
-                request = urllib2.Request(url, urllib.urlencode(params))
-                request.add_unredirected_header(
-                    "Authorization",
-                    "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-                )
+                url = "%s/deployment_status/" % endpoint
                 try:
-                    response = urllib2.urlopen(request)
+                    response = make_api_call(config, url, urllib.urlencode(params))
                 except urllib2.URLError:
                     # @@@ add max retries
                     continue
@@ -255,24 +242,19 @@ def cmd_sqldump(args, config):
     
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
+    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
     site_key = local_config.get("gondor", "site_key")
     
     # request SQL dump and stream the response through uncompression
     
     d = zlib.decompressobj(16+zlib.MAX_WBITS)
-    url = "http://%s/sqldump/" % endpoint
+    url = "%s/sqldump/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
         "label": label,
     }
-    request = urllib2.Request(url, urllib.urlencode(params))
-    request.add_unredirected_header(
-        "Authorization",
-        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-    )
-    response = urllib2.urlopen(request)
+    response = make_api_call(config, url, urllib.urlencode(params))
     cs = 16 * 1024
     while True:
         chunk = response.read(cs)
@@ -296,25 +278,20 @@ def cmd_addon(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
+    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
     text = "Adding addon to your instance... "
     out(text)
-    url = "http://%s/addon/" % endpoint
+    url = "%s/addon/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
         "addon_label": addon_label,
         "instance_label": instance_label,
     }
-    request = urllib2.Request(url, urllib.urlencode(params))
-    request.add_unredirected_header(
-        "Authorization",
-        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-    )
-    response = urllib2.urlopen(request)
+    response = make_api_call(config, url, urllib.urlencode(params))
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -343,7 +320,7 @@ def cmd_run(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
+    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
     site_key = local_config.get("gondor", "site_key")
     app_config = {
         "requirements_file": config_value(local_config, "app", "requirements_file"),
@@ -396,7 +373,7 @@ def cmd_run(args, config):
         }
     
     out("Executing... ")
-    url = "http://%s/run/" % endpoint
+    url = "%s/run/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
@@ -405,12 +382,7 @@ def cmd_run(args, config):
         "params": json.dumps(params),
         "app": json.dumps(app_config),
     }
-    request = urllib2.Request(url, urllib.urlencode(params))
-    request.add_unredirected_header(
-        "Authorization",
-        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-    )
-    response = urllib2.urlopen(request)
+    response = make_api_call(config, url, urllib.urlencode(params))
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -425,13 +397,8 @@ def cmd_run(args, config):
                 "instance_label": instance_label,
                 "deployment_id": task_id,
             }
-            url = "http://%s/task_status/" % endpoint
-            request = urllib2.Request(url, urllib.urlencode(params))
-            request.add_unredirected_header(
-                "Authorization",
-                "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-            )
-            response = urllib2.urlopen(request)
+            url = "%s/task_status/" % endpoint
+            response = make_api_call(config, url, urllib.urlencode(params))
             data = json.loads(response.read())
             if data["status"] == "error":
                 out("[error]\n")
@@ -466,7 +433,7 @@ def cmd_delete(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
+    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
@@ -478,18 +445,13 @@ def cmd_delete(args, config):
         sys.exit(0)
     text = "Deleting... "
     
-    url = "http://%s/delete/" % endpoint
+    url = "%s/delete/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
         "instance_label": instance_label,
     }
-    request = urllib2.Request(url, urllib.urlencode(params))
-    request.add_unredirected_header(
-        "Authorization",
-        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-    )
-    response = urllib2.urlopen(request)
+    response = make_api_call(config, url, urllib.urlencode(params))
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -514,21 +476,16 @@ def cmd_list(args, config):
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", "api.gondor.io")
+    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
     site_key = local_config.get("gondor", "site_key")
     out("[ok]\n")
     
-    url = "http://%s/list/" % endpoint
+    url = "%s/list/" % endpoint
     params = {
         "version": __version__,
         "site_key": site_key,
     }
-    request = urllib2.Request(url, urllib.urlencode(params))
-    request.add_unredirected_header(
-        "Authorization",
-        "Basic %s" % base64.b64encode("%s:%s" % (config["username"], config["password"])).strip()
-    )
-    response = urllib2.urlopen(request)
+    response = make_api_call(config, url, urllib.urlencode(params))
     data = json.loads(response.read())
     
     if data["status"] == "success":
