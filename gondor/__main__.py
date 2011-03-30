@@ -182,7 +182,7 @@ def cmd_deploy(args, config):
             "sha": sha,
             "commit": commit,
             "tarball": open(tarball, "rb"),
-            "project_root": os.path.basename(project_root),
+            "project_root": os.path.relpath(project_root, repo_root),
             "app": json.dumps(app_config),
         }
         request = urllib2.Request(url, params)
