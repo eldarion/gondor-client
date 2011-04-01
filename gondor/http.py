@@ -102,8 +102,8 @@ class HTTPSConnection(httplib.HTTPConnection):
         """
         Connect to a host on a given (SSL) port.
         """
-        sock = socket.create_connection((self.host, self.port),
-                                        self.timeout, self.source_address)
+        
+        sock = socket.create_connection((self.host, self.port), self.timeout)
         
         if self._tunnel_host:
             self.sock = sock
