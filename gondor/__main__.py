@@ -322,12 +322,22 @@ def cmd_run(args, config):
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
     endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
     site_key = local_config.get("gondor", "site_key")
+    vcs = local_config.get("gondor", "vcs")
     app_config = {
         "requirements_file": config_value(local_config, "app", "requirements_file"),
         "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
         "migrations": config_value(local_config, "app", "migrations"),
     }
     out("[ok]\n")
+    
+    if vcs == "git":
+        try:
+            repo_root = utils.find_nearest(os.getcwd(), ".git")
+        except OSError:
+            sys.stderr.write("Unable to find a .git directory.\n")
+            sys.exit(1)
+    else:
+        raise NotImplementedError()
     
     if command == "createsuperuser":
         try:
@@ -378,6 +388,7 @@ def cmd_run(args, config):
         "version": __version__,
         "site_key": site_key,
         "instance_label": instance_label,
+        "project_root": os.path.relpath(project_root, repo_root),
         "command": command,
         "params": json.dumps(params),
         "app": json.dumps(app_config),
