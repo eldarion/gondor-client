@@ -102,12 +102,7 @@ class HTTPSConnection(httplib.HTTPConnection):
         """
         Connect to a host on a given (SSL) port.
         """
-        
         sock = socket.create_connection((self.host, self.port), self.timeout)
-        
-        if self._tunnel_host:
-            self.sock = sock
-            self._tunnel()
         self.sock = ssl.wrap_socket(
             sock, self.key_file, self.cert_file,
             ca_certs=GONDOR_IO_CRT, cert_reqs=ssl.CERT_REQUIRED
