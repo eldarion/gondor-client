@@ -23,3 +23,9 @@ def find_nearest(directory, search):
 def out(msg):
     sys.stdout.write(msg)
     sys.stdout.flush()
+
+
+def error(msg, exit=True):
+    sys.stderr.write("ERROR: %s" % msg)
+    if exit:
+        sys.exit(1)

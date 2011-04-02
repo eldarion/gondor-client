@@ -22,6 +22,7 @@ from gondor.progressbar import ProgressBar
 
 
 out = utils.out
+error = utils.error
 
 
 RE_VALID_USERNAME = re.compile('[\w.@+-]+$')
@@ -43,8 +44,7 @@ def config_value(config, section, key, default=None):
 def cmd_init(args, config):
     site_key = args.site_key[0]
     if len(site_key) < 11:
-        sys.stderr.write("The site key given is too short.\n")
-        sys.exit(1)
+        error("The site key given is too short.\n")
     
     # ensure os.getcwd() is a Django directory
     files = [
@@ -52,8 +52,7 @@ def cmd_init(args, config):
         os.path.join(os.getcwd(), "manage.py")
     ]
     if not all([os.path.exists(f) for f in files]):
-        sys.stderr.write("You must run gondor init from a Django project directory.\n")
-        sys.exit(1)
+        error("must run gondor init from a Django project directory.\n")
     
     gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
     
@@ -63,8 +62,7 @@ def cmd_init(args, config):
         try:
             repo_root = utils.find_nearest(os.getcwd(), ".hg")
         except OSError:
-            sys.stderr.write("Unable to find a supported version control directory. Looked for .git and .hg.\n")
-            sys.exit(1)
+            error("unable to find a supported version control directory. Looked for .git and .hg.\n")
         else:
             vcs = "hg"
     else:
@@ -91,8 +89,7 @@ def cmd_create(args, config):
     try:
         project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     except OSError:
-        sys.stderr.write("Unable to find a .gondor directory.\n")
-        sys.exit(1)
+        error("unable to find a .gondor directory.\n")
     
     label = args.label[0]
     
@@ -129,7 +126,7 @@ def cmd_create(args, config):
         out("\nRun: gondor deploy %s HEAD" % label)
         out("\nVisit: %s\n" % data["url"])
     else:
-        out("\nError: %s\n" % data["message"])
+        error("%s\n" % data["message"])
 
 
 def cmd_deploy(args, config):
@@ -140,8 +137,7 @@ def cmd_deploy(args, config):
     try:
         project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     except OSError:
-        sys.stderr.write("Unable to find a .gondor directory.\n")
-        sys.exit(1)
+        error("unable to find a .gondor directory.\n")
     
     tarball = None
     
@@ -163,8 +159,7 @@ def cmd_deploy(args, config):
             try:
                 repo_root = utils.find_nearest(os.getcwd(), ".git")
             except OSError:
-                sys.stderr.write("Unable to find a .git directory.\n")
-                sys.exit(1)
+                error("unable to find a .git directory.\n")
             sha = utils.check_output("git rev-parse %s" % commit).strip()
             if commit == "HEAD":
                 commit = sha
@@ -174,8 +169,7 @@ def cmd_deploy(args, config):
             try:
                 repo_root = utils.find_nearest(os.getcwd(), ".hg")
             except OSError:
-                sys.stderr.write("Unable to find a .hg directory.\n")
-                sys.exit(1)
+                error("unable to find a .hg directory.\n")
             branches_stdout = utils.check_output("hg branches")
             tags_stdout = utils.check_output("hg tags")
             refs = {}
@@ -186,12 +180,11 @@ def cmd_deploy(args, config):
             try:
                 sha = refs[commit]
             except KeyError:
-                sys.stderr.write("ERROR: could not map '%s' to a SHA\n" % commit)
-                sys.exit(1)
+                error("could not map '%s' to a SHA\n" % commit)
             tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
             cmd = "(cd %s && hg archive -p . -t tgz -r %s %s)" % (repo_root, commit, tarball)
         else:
-            raise NotImplementedError()
+            error("'%s' is not a valid version control system for Gondor\n" % vcs)
         
         out("Building tarball from %s... " % commit)
         subprocess.call([cmd], shell=True)
@@ -218,53 +211,55 @@ def cmd_deploy(args, config):
         response = make_api_call(config, url, params, extra_handlers=handlers)
         out("\n")
         data = json.loads(response.read())
-        if data["status"] == "error":
-            out("\nError: %s\n" % data["message"])
-        if data["status"] == "success":
-            deployment_id = data["deployment"]
-            if "url" in data:
-                instance_url = data["url"]
-            else:
-                instance_url = None
-            
-            # poll status of the deployment
-            out("Deploying... ")
-            while True:
-                params = {
-                    "version": __version__,
-                    "site_key": site_key,
-                    "instance_label": label,
-                    "deployment_id": deployment_id,
-                }
-                url = "%s/deployment_status/" % endpoint
-                try:
-                    response = make_api_call(config, url, urllib.urlencode(params))
-                except urllib2.URLError:
-                    # @@@ add max retries
-                    continue
-                data = json.loads(response.read())
-                if data["status"] == "error":
-                    out("[error]\n")
-                    out("\nError: %s\n" % data["message"])
-                if data["status"] == "success":
-                    if data["state"] == "deployed":
-                        out("[ok]\n")
-                        if instance_url:
-                            out("\nVisit: %s\n" % instance_url)
-                        break
-                    elif data["state"] == "failed":
-                        out("[failed]\n")
-                        out("\n%s\n" % data["reason"])
-                        break
-                    elif data["state"] == "locked":
-                        out("[locked]\n")
-                        out("\nYour deployment failed due to being locked. This means there is another deployment already in progress.\n")
-                        break
-                    else:
-                        time.sleep(1)
+    
     finally:
         if tarball:
             os.unlink(tarball)
+    
+    if data["status"] == "error":
+        error("%s\n" % data["message"])
+    if data["status"] == "success":
+        deployment_id = data["deployment"]
+        if "url" in data:
+            instance_url = data["url"]
+        else:
+            instance_url = None
+        
+        # poll status of the deployment
+        out("Deploying... ")
+        while True:
+            params = {
+                "version": __version__,
+                "site_key": site_key,
+                "instance_label": label,
+                "deployment_id": deployment_id,
+            }
+            url = "%s/deployment_status/" % endpoint
+            try:
+                response = make_api_call(config, url, urllib.urlencode(params))
+            except urllib2.URLError:
+                # @@@ add max retries
+                continue
+            data = json.loads(response.read())
+            if data["status"] == "error":
+                out("[error]\n")
+                error("%s\n" % data["message"])
+            if data["status"] == "success":
+                if data["state"] == "deployed":
+                    out("[ok]\n")
+                    if instance_url:
+                        out("\nVisit: %s\n" % instance_url)
+                    break
+                elif data["state"] == "failed":
+                    out("[failed]\n")
+                    out("\n%s\n" % data["reason"])
+                    sys.exit(1)
+                elif data["state"] == "locked":
+                    out("[locked]\n")
+                    out("\nYour deployment failed due to being locked. This means there is another deployment already in progress.\n")
+                    sys.exit(1)
+                else:
+                    time.sleep(2)
 
 
 def cmd_sqldump(args, config):
@@ -296,47 +291,6 @@ def cmd_sqldump(args, config):
         out(d.decompress(chunk))
 
 
-def cmd_addon(args, config):
-    
-    addon_label = args.addon_label[0]
-    instance_label = args.instance_label[0]
-    
-    gondor_dirname = ".gondor"
-    try:
-        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
-    except OSError:
-        sys.stderr.write("Unable to find a .gondor directory.\n")
-        sys.exit(1)
-    
-    out("Reading configuration... ")
-    local_config = ConfigParser.RawConfigParser()
-    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
-    site_key = local_config.get("gondor", "site_key")
-    out("[ok]\n")
-    
-    text = "Adding addon to your instance... "
-    out(text)
-    url = "%s/addon/" % endpoint
-    params = {
-        "version": __version__,
-        "site_key": site_key,
-        "addon_label": addon_label,
-        "instance_label": instance_label,
-    }
-    response = make_api_call(config, url, urllib.urlencode(params))
-    data = json.loads(response.read())
-    if data["status"] == "error":
-        message = "error"
-    elif data["status"] == "success":
-        message = "ok"
-    else:
-        message = "unknown"
-    out("\r%s[%s]   \n" % (text, message))
-    if data["status"] == "error":
-        out("\nError: %s\n" % data["message"])
-
-
 def cmd_run(args, config):
     
     instance_label = args.instance_label[0]
@@ -347,8 +301,7 @@ def cmd_run(args, config):
     try:
         project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     except OSError:
-        sys.stderr.write("Unable to find a .gondor directory.\n")
-        sys.exit(1)
+        error("unable to find a .gondor directory.\n")
     
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
@@ -367,16 +320,14 @@ def cmd_run(args, config):
         try:
             repo_root = utils.find_nearest(os.getcwd(), ".git")
         except OSError:
-            sys.stderr.write("Unable to find a .git directory.\n")
-            sys.exit(1)
+            error("unable to find a .git directory.\n")
     elif vcs == "hg":
         try:
             repo_root = utils.find_nearest(os.getcwd(), ".hg")
         except OSError:
-            sys.stderr.write("Unable to find a .hg directory.\n")
-            sys.exit(1)
+            error("unable to find a .hg directory.\n")
     else:
-        raise NotImplementedError()
+        error("'%s' is not a valid version control system for Gondor\n" % vcs)
     
     if command == "createsuperuser":
         try:
@@ -437,7 +388,7 @@ def cmd_run(args, config):
     
     if data["status"] == "error":
         out("[error]\n")
-        out("\nError: %s\n" % data["message"])
+        error("%s\n" % data["message"])
     if data["status"] == "success":
         task_id = data["task"]
         while True:
@@ -460,11 +411,11 @@ def cmd_run(args, config):
                 elif data["state"] == "failed":
                     out("[failed]\n")
                     out("\n%s\n" % data["reason"])
-                    break
+                    sys.exit(1)
                 elif data["state"] == "locked":
                     out("[locked]\n")
                     out("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
-                    break
+                    sys.exit(1)
                 else:
                     time.sleep(2)
 
@@ -477,8 +428,7 @@ def cmd_delete(args, config):
     try:
         project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     except OSError:
-        sys.stderr.write("Unable to find a .gondor directory.\n")
-        sys.exit(1)
+        error("unable to find a .gondor directory.\n")
     
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
@@ -511,7 +461,7 @@ def cmd_delete(args, config):
         message = "unknown"
     out("\r%s[%s]   \n" % (text, message))
     if data["status"] == "error":
-        out("\nError: %s\n" % data["message"])
+        error("%s\n" % data["message"])
 
 
 def cmd_list(args, config):
@@ -520,8 +470,7 @@ def cmd_list(args, config):
     try:
         project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
     except OSError:
-        sys.stderr.write("Unable to find a .gondor directory.\n")
-        sys.exit(1)
+        error("unable to find a .gondor directory.\n")
     
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
@@ -540,14 +489,18 @@ def cmd_list(args, config):
     
     if data["status"] == "success":
         out("\n")
-        for instance in sorted(data["instances"], key=lambda v: v["label"]):
-            out("%s [%s] %s\n" % (
-                instance["label"],
-                instance["kind"],
-                instance["last_deployment"]["sha"][:8]
-            ))
+        instances = sorted(data["instances"], key=lambda v: v["label"])
+        if instances:
+            for instance in instances:
+                out("%s [%s] %s\n" % (
+                    instance["label"],
+                    instance["kind"],
+                    instance["last_deployment"]["sha"][:8]
+                ))
+        else:
+            out("No instances found.\n")
     else:
-        out("\nError: %s\n" % data["message"])
+        error("%s\n" % data["message"])
 
 
 def main():
@@ -573,11 +526,6 @@ def main():
     # cmd: sqldump
     parser_sqldump = command_parsers.add_parser("sqldump")
     parser_sqldump.add_argument("label", nargs=1)
-    
-    # cmd: addon
-    parser_addon = command_parsers.add_parser("addon")
-    parser_addon.add_argument("addon_label", nargs=1)
-    parser_addon.add_argument("instance_label", nargs=1)
     
     # cmd: run
     parser_run = command_parsers.add_parser("run")
@@ -607,7 +555,6 @@ def main():
         "create": cmd_create,
         "deploy": cmd_deploy,
         "sqldump": cmd_sqldump,
-        "addon": cmd_addon,
         "run": cmd_run,
         "delete": cmd_delete,
         "list": cmd_list,
