@@ -57,6 +57,19 @@ def cmd_init(args, config):
     
     gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
     
+    try:
+        repo_root = utils.find_nearest(os.getcwd(), ".git")
+    except OSError:
+        try:
+            repo_root = utils.find_nearest(os.getcwd(), ".hg")
+        except OSError:
+            sys.stderr.write("Unable to find a supported version control directory. Looked for .git and .hg.\n")
+            sys.exit(1)
+        else:
+            vcs = "hg"
+    else:
+        vcs = "git"
+    
     if not os.path.exists(gondor_dir):
         os.mkdir(gondor_dir)
         
@@ -64,7 +77,7 @@ def cmd_init(args, config):
         new_config = ConfigParser.RawConfigParser()
         new_config.add_section("gondor")
         new_config.set("gondor", "site_key", site_key)
-        new_config.set("gondor", "vcs", "git")
+        new_config.set("gondor", "vcs", vcs)
         new_config.add_section("app")
         new_config.set("app", "requirements_file", "requirements/project.txt")
         new_config.set("app", "wsgi_entry_point", "deploy.wsgi")
@@ -157,6 +170,26 @@ def cmd_deploy(args, config):
                 commit = sha
             tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
             cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
+        elif vcs == "hg":
+            try:
+                repo_root = utils.find_nearest(os.getcwd(), ".hg")
+            except OSError:
+                sys.stderr.write("Unable to find a .hg directory.\n")
+                sys.exit(1)
+            branches_stdout = utils.check_output("hg branches")
+            tags_stdout = utils.check_output("hg tags")
+            refs = {}
+            for line in branches_stdout.splitlines() + tags_stdout.splitlines():
+                m = re.search(r"([\w\d\.-]+)\s*([\d]+):([\w]+)$", line)
+                if m:
+                    refs[m.group(1)] = m.group(3)
+            try:
+                sha = refs[commit]
+            except KeyError:
+                sys.stderr.write("ERROR: could not map '%s' to a SHA\n" % commit)
+                sys.exit(1)
+            tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
+            cmd = "(cd %s && hg archive -p . -t tgz -r %s %s)" % (repo_root, commit, tarball)
         else:
             raise NotImplementedError()
         
@@ -335,6 +368,12 @@ def cmd_run(args, config):
             repo_root = utils.find_nearest(os.getcwd(), ".git")
         except OSError:
             sys.stderr.write("Unable to find a .git directory.\n")
+            sys.exit(1)
+    elif vcs == "hg":
+        try:
+            repo_root = utils.find_nearest(os.getcwd(), ".hg")
+        except OSError:
+            sys.stderr.write("Unable to find a .hg directory.\n")
             sys.exit(1)
     else:
         raise NotImplementedError()
