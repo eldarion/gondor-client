@@ -546,9 +546,11 @@ def main():
     config = ConfigParser.RawConfigParser()
     config.read(os.path.expanduser("~/.gondor"))
     config = {
-        "username": config.get("auth", "username"),
-        "password": config.get("auth", "password"),
+        "username": config_value(config, "auth", "username"),
+        "password": config_value(config, "auth", "password"),
     }
+    if config["username"] is None or config["password"] is None:
+        error("you must set your credentials in ~/.gondor correctly\n")
     
     {
         "init": cmd_init,
