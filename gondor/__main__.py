@@ -3,6 +3,7 @@ import ConfigParser
 import getpass
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -503,6 +504,85 @@ def cmd_list(args, config):
         error("%s\n" % data["message"])
 
 
+def cmd_manage(args, config):
+    
+    instance_label = args.label[0]
+    operation = args.operation[0]
+    opargs = args.opargs
+    
+    gondor_dirname = ".gondor"
+    try:
+        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
+    except OSError:
+        error("unable to find a .gondor directory.\n")
+    
+    out("Reading configuration... ")
+    local_config = ConfigParser.RawConfigParser()
+    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
+    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
+    site_key = local_config.get("gondor", "site_key")
+    out("[ok]\n")
+    
+    url = "%s/manage/" % endpoint
+    params = {
+        "version": __version__,
+        "site_key": site_key,
+        "instance_label": instance_label,
+        "operation": operation,
+    }
+    handlers = [
+        http.MultipartPostHandler,
+    ]
+    if not sys.stdin.isatty():
+        params["stdin"] = sys.stdin
+        pb = ProgressBar(0, 100, 77)
+        out("Pushing stdin to Gondor... \n")
+        handlers.extend([
+            http.UploadProgressHandler(pb, ssl=True),
+            http.UploadProgressHandler(pb, ssl=False)
+        ])
+    params = params.items()
+    for oparg in opargs:
+        params.append(("arg", oparg))
+    response = make_api_call(config, url, params, extra_handlers=handlers)
+    if not sys.stdin.isatty():
+        out("\n")
+    out("Running... ")
+    data = json.loads(response.read())
+    
+    if data["status"] == "error":
+        out("[error]\n")
+        error("%s\n" % data["message"])
+    if data["status"] == "success":
+        task_id = data["task"]
+        while True:
+            params = {
+                "version": __version__,
+                "site_key": site_key,
+                "instance_label": instance_label,
+                "task_id": task_id,
+            }
+            url = "%s/task_status/" % endpoint
+            response = make_api_call(config, url, urllib.urlencode(params))
+            data = json.loads(response.read())
+            if data["status"] == "error":
+                out("[error]\n")
+                out("\nError: %s\n" % data["message"])
+            if data["status"] == "success":
+                if data["state"] == "finished":
+                    out("[ok]\n")
+                    break
+                elif data["state"] == "failed":
+                    out("[failed]\n")
+                    out("\n%s\n" % data["reason"])
+                    sys.exit(1)
+                elif data["state"] == "locked":
+                    out("[locked]\n")
+                    out("\nYour task failed due to being locked. This means there is another task already in progress.\n")
+                    sys.exit(1)
+                else:
+                    time.sleep(2)
+
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
@@ -539,6 +619,14 @@ def main():
     # cmd: list
     parser_list = command_parsers.add_parser("list")
     
+    # cmd: manage
+    # example: gondor manage primary database:reset
+    # example: gondor manage dev database:copy primary
+    parser_manage = command_parsers.add_parser("manage")
+    parser_manage.add_argument("label", nargs=1)
+    parser_manage.add_argument("operation", nargs=1)
+    parser_manage.add_argument("opargs", nargs="*")
+    
     args = parser.parse_args()
     
     # config
@@ -560,4 +648,5 @@ def main():
         "run": cmd_run,
         "delete": cmd_delete,
         "list": cmd_list,
+        "manage": cmd_manage,
     }[args.command](args, config)
