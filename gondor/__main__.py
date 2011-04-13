@@ -233,9 +233,9 @@ def cmd_deploy(args, config):
                 "version": __version__,
                 "site_key": site_key,
                 "instance_label": label,
-                "deployment_id": deployment_id,
+                "task_id": deployment_id,
             }
-            url = "%s/deployment_status/" % endpoint
+            url = "%s/task_status/" % endpoint
             try:
                 response = make_api_call(config, url, urllib.urlencode(params))
             except urllib2.URLError:
@@ -397,7 +397,7 @@ def cmd_run(args, config):
                 "version": __version__,
                 "site_key": site_key,
                 "instance_label": instance_label,
-                "deployment_id": task_id,
+                "task_id": task_id,
             }
             url = "%s/task_status/" % endpoint
             response = make_api_call(config, url, urllib.urlencode(params))
