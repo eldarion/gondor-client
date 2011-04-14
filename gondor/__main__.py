@@ -209,9 +209,14 @@ def cmd_deploy(args, config):
             http.UploadProgressHandler(pb, ssl=True),
             http.UploadProgressHandler(pb, ssl=False)
         ]
-        response = make_api_call(config, url, params, extra_handlers=handlers)
-        out("\n")
-        data = json.loads(response.read())
+        try:
+            response = make_api_call(config, url, params, extra_handlers=handlers)
+        except KeyboardInterrupt:
+            out("\nCanceling uploading... [ok]\n")
+            sys.exit(1)
+        else:
+            out("\n")
+            data = json.loads(response.read())
     
     finally:
         if tarball:
