@@ -25,7 +25,12 @@ def out(msg):
     sys.stdout.flush()
 
 
+def err(msg):
+    sys.stderr.write(msg)
+    sys.stderr.flush()
+
+
 def error(msg, exit=True):
-    sys.stderr.write("ERROR: %s" % msg)
+    err("ERROR: %s" % msg)
     if exit:
         sys.exit(1)

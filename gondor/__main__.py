@@ -23,6 +23,7 @@ from gondor.progressbar import ProgressBar
 
 
 out = utils.out
+err = utils.err
 error = utils.error
 
 
@@ -281,7 +282,7 @@ def cmd_sqldump(args, config):
     
     # request SQL dump and stream the response through uncompression
     
-    d = zlib.decompressobj(16+zlib.MAX_WBITS)
+    err("Dumping database... ")
     url = "%s/sqldump/" % endpoint
     params = {
         "version": __version__,
@@ -289,7 +290,49 @@ def cmd_sqldump(args, config):
         "label": label,
     }
     response = make_api_call(config, url, urllib.urlencode(params))
+    data = json.loads(response.read())
+    
+    if data["status"] == "error":
+        error("%s\n" % data["message"])
+    if data["status"] == "success":
+        task_id = data["task"]
+        while True:
+            params = {
+                "version": __version__,
+                "site_key": site_key,
+                "instance_label": label,
+                "task_id": task_id,
+            }
+            url = "%s/task_status/" % endpoint
+            try:
+                response = make_api_call(config, url, urllib.urlencode(params))
+            except urllib2.URLError:
+                # @@@ add max retries
+                continue
+            data = json.loads(response.read())
+            if data["status"] == "error":
+                err("[error]\n")
+                error("%s\n" % data["message"])
+            if data["status"] == "success":
+                if data["state"] == "finished":
+                    err("[ok]\n")
+                    break
+                elif data["state"] == "failed":
+                    err("[failed]\n")
+                    err("\n%s\n" % data["reason"])
+                    sys.exit(1)
+                elif data["state"] == "locked":
+                    err("[locked]\n")
+                    err("\nYour database dump failed due to being locked. "
+                        "This means there is another database dump already "
+                        "in progress.\n")
+                    sys.exit(1)
+                else:
+                    time.sleep(2)
+    
+    d = zlib.decompressobj(16+zlib.MAX_WBITS)
     cs = 16 * 1024
+    response = urllib2.urlopen(data["result"]["public_url"])
     while True:
         chunk = response.read(cs)
         if not chunk:
