@@ -389,11 +389,11 @@ def cmd_run(args, config):
                     continue
                 break
             
-            # Get an e-mail
+            # Get an email
             while 1:
-                email = raw_input("E-mail address: ")
+                email = raw_input("Email address: ")
                 if not EMAIL_RE.search(email):
-                    sys.stderr.write("Error: That e-mail address is invalid.\n")
+                    sys.stderr.write("Error: That email address is invalid.\n")
                     email = None
                 else:
                     break
