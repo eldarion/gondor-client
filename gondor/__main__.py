@@ -344,7 +344,8 @@ def cmd_run(args, config):
     
     instance_label = args.instance_label[0]
     command = args.command_[0]
-    params = {}
+    cmdargs = args.cmdargs
+    params = {"cmdargs": cmdargs}
     
     gondor_dirname = ".gondor"
     try:
@@ -456,6 +457,7 @@ def cmd_run(args, config):
             if data["status"] == "success":
                 if data["state"] == "executed":
                     out("[ok]\n")
+                    out("\n%s" % data["result"]["output"])
                     break
                 elif data["state"] == "failed":
                     out("[failed]\n")
@@ -659,6 +661,7 @@ def main():
     parser_run = command_parsers.add_parser("run")
     parser_run.add_argument("instance_label", nargs=1)
     parser_run.add_argument("command_", nargs=1)
+    parser_run.add_argument("cmdargs", nargs="*")
     
     # cmd: delete
     parser_delete = command_parsers.add_parser("delete")
