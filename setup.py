@@ -14,6 +14,7 @@ setup(
     name = "gondor",
     version = __version__,
     description = "official gondor.io command line client",
+    url = "https://github.com/eldarion/gondor-client",
     author = "Eldarion",
     author_email = "development@eldarion.com",
     packages = find_packages(),
