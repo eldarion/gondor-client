@@ -13,7 +13,7 @@ if sys.version_info < (2, 7):
 setup(
     name = "gondor",
     version = __version__,
-    description = "Eldarion infrastructure tools",
+    description = "official gondor.io command line client",
     author = "Eldarion",
     author_email = "development@eldarion.com",
     packages = find_packages(),
