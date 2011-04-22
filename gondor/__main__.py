@@ -82,6 +82,7 @@ def cmd_init(args, config):
         new_config.set("app", "requirements_file", "requirements/project.txt")
         new_config.set("app", "wsgi_entry_point", "deploy.wsgi")
         new_config.set("app", "migrations", "none")
+        new_config.set("app", "staticfiles", "off")
         with open(os.path.join(gondor_dir, "config"), "wb") as cf:
             new_config.write(cf)
 
@@ -154,6 +155,7 @@ def cmd_deploy(args, config):
             "requirements_file": config_value(local_config, "app", "requirements_file"),
             "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
             "migrations": config_value(local_config, "app", "migrations"),
+            "staticfiles": config_value(local_config, "app", "staticfiles"),
         }
         out("[ok]\n")
         
@@ -363,6 +365,7 @@ def cmd_run(args, config):
         "requirements_file": config_value(local_config, "app", "requirements_file"),
         "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
         "migrations": config_value(local_config, "app", "migrations"),
+        "staticfiles": config_value(local_config, "app", "staticfiles"),
     }
     out("[ok]\n")
     

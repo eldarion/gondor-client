@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+dev
+===
+
+ * added staticfiles option to [app]; allowing values "on" or "off"
+
 
 1.0b1.post1
 ===========
