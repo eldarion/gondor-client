@@ -100,6 +100,18 @@ def cmd_create(args, config):
     if kind is None:
         kind = "dev"
     
+    try:
+        repo_root = utils.find_nearest(os.getcwd(), ".git")
+    except OSError:
+        try:
+            repo_root = utils.find_nearest(os.getcwd(), ".hg")
+        except OSError:
+            error("unable to find a supported version control directory. Looked for .git and .hg.\n")
+        else:
+            vcs = "hg"
+    else:
+        vcs = "git"
+    
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
     local_config.read(os.path.join(project_root, gondor_dirname, "config"))
@@ -126,7 +138,8 @@ def cmd_create(args, config):
         message = "unknown"
     out("\r%s[%s]   \n" % (text, message))
     if data["status"] == "success":
-        out("\nRun: gondor deploy %s HEAD" % label)
+        
+        out("\nRun: gondor deploy %s %s" % (label, {"git": "HEAD", "hg": "tip"}[vcs]))
         out("\nVisit: %s\n" % data["url"])
     else:
         error("%s\n" % data["message"])

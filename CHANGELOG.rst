@@ -6,6 +6,8 @@ dev
 ===
 
  * added staticfiles option to [app]; allowing values "on" or "off"
+ * improved create success message regarding how to deploy to be friendly to
+   all supported vcs users
 
 
 1.0b1.post1
