@@ -3,6 +3,7 @@ import ConfigParser
 import getpass
 import os
 import re
+import random
 import shutil
 import stat
 import subprocess
@@ -337,6 +338,15 @@ def cmd_startproject(args, config):
                     os.chmod(path_new, new_permissions)
             except OSError:
                 sys.stderr.write("Notice: Couldn't set permission bits on %s. You're probably using an uncommon filesystem setup. No problem.\n" % path_new)
+    
+    # Create a random SECRET_KEY hash, and put it in the main settings.
+    main_settings_file = os.path.join(project_dir, "settings.py")
+    settings_contents = open(main_settings_file, "r").read()
+    fp = open(main_settings_file, "w")
+    secret_key = "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])
+    settings_contents = re.sub(r"(?<=SECRET_KEY = ')'", secret_key + "'", settings_contents)
+    fp.write(settings_contents)
+    fp.close()
 
 
 def cmd_sqldump(args, config):
