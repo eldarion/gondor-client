@@ -83,6 +83,7 @@ def cmd_init(args, config):
         new_config.set("app", "requirements_file", "requirements/project.txt")
         new_config.set("app", "wsgi_entry_point", "deploy.wsgi")
         new_config.set("app", "migrations", "none")
+        new_config.set("app", "staticfiles", "off")
         with open(os.path.join(gondor_dir, "config"), "wb") as cf:
             new_config.write(cf)
 
@@ -99,6 +100,18 @@ def cmd_create(args, config):
     kind = args.kind
     if kind is None:
         kind = "dev"
+    
+    try:
+        repo_root = utils.find_nearest(os.getcwd(), ".git")
+    except OSError:
+        try:
+            repo_root = utils.find_nearest(os.getcwd(), ".hg")
+        except OSError:
+            error("unable to find a supported version control directory. Looked for .git and .hg.\n")
+        else:
+            vcs = "hg"
+    else:
+        vcs = "git"
     
     out("Reading configuration... ")
     local_config = ConfigParser.RawConfigParser()
@@ -126,7 +139,8 @@ def cmd_create(args, config):
         message = "unknown"
     out("\r%s[%s]   \n" % (text, message))
     if data["status"] == "success":
-        out("\nRun: gondor deploy %s HEAD" % label)
+        
+        out("\nRun: gondor deploy %s %s" % (label, {"git": "HEAD", "hg": "tip"}[vcs]))
         out("\nVisit: %s\n" % data["url"])
     else:
         error("%s\n" % data["message"])
@@ -155,6 +169,7 @@ def cmd_deploy(args, config):
             "requirements_file": config_value(local_config, "app", "requirements_file"),
             "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
             "migrations": config_value(local_config, "app", "migrations"),
+            "staticfiles": config_value(local_config, "app", "staticfiles"),
         }
         out("[ok]\n")
         
@@ -411,6 +426,7 @@ def cmd_run(args, config):
         "requirements_file": config_value(local_config, "app", "requirements_file"),
         "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
         "migrations": config_value(local_config, "app", "migrations"),
+        "staticfiles": config_value(local_config, "app", "staticfiles"),
     }
     out("[ok]\n")
     
