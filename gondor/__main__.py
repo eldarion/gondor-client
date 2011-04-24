@@ -295,6 +295,13 @@ def cmd_startproject(args, config):
             message = "use only numbers, letters and underscores"
         raise error("%r is not a valid project name. Please %s." % (name, message))
     
+    try:
+        __import__(name)
+    except ImportError:
+        pass
+    else:
+        error("%r conflicts with the name of an existing Python module and cannot be used as a project name. Please try another name." % name)
+    
     project_dir = os.path.join(os.getcwd(), name)
     try:
         os.mkdir(project_dir)
