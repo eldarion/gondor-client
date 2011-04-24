@@ -1,1 +1,3 @@
 recursive-include gondor/ssl *.crt
+recursive-include gondor/conf/project_template/requirements *.txt
+

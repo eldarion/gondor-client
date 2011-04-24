@@ -3,6 +3,7 @@ import ConfigParser
 import getpass
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -16,7 +17,7 @@ try:
 except ImportError:
     import json
 
-from gondor import __version__
+from gondor import __version__, __path__
 from gondor import http, utils
 from gondor.api import make_api_call
 from gondor.progressbar import ProgressBar
@@ -267,6 +268,53 @@ def cmd_deploy(args, config):
                     sys.exit(1)
                 else:
                     time.sleep(2)
+
+
+def cmd_startproject(args, config):
+    name = args.name[0]
+    
+    if not re.search(r"^[_a-zA-Z]\w*$", name):
+        if not re.search(r"^[_a-zA-Z]", name):
+            message = "make sure the name begins with a letter or underscore"
+        else:
+            message = "use only numbers, letters and underscores"
+        raise error("%r is not a valid project name. Please %s." % (name, message))
+    
+    project_dir = os.path.join(os.getcwd(), name)
+    try:
+        os.mkdir(project_dir)
+    except OSError, e:
+        error("Cannot create the project directory.")
+    
+    template_dir = os.path.join(__path__[0], "conf", "project_template")
+    
+    for d, subdirs, files in os.walk(template_dir):
+        relative_dir = d[len(template_dir)+1:].replace("project_name", name)
+        if relative_dir:
+            os.mkdir(os.path.join(project_dir, relative_dir))
+        for subdir in subdirs[:]:
+            if subdir.startswith("."):
+                subdirs.remove(subdir)
+        for f in files:
+            if not f.endswith(".py") and not f.endswith(".txt"):
+                # Ignore .pyc, .pyo, .py.class etc, as they cause various
+                # breakages.
+                continue
+            path_old = os.path.join(d, f)
+            path_new = os.path.join(project_dir, relative_dir, f.replace("project_name", name))
+            fp_old = open(path_old, "r")
+            fp_new = open(path_new, "w")
+            fp_new.write(fp_old.read().replace("{{ project_name }}", name))
+            fp_old.close()
+            fp_new.close()
+            try:
+                shutil.copymode(path_old, path_new)
+                if not os.access(path_new, os.W_OK):
+                    st = os.stat(path_new)
+                    new_permissions = stat.S_IMODE(st.st_mode) | stat.S_IWUSR
+                    os.chmod(path_new, new_permissions)
+            except OSError:
+                sys.stderr.write("Notice: Couldn't set permission bits on %s. You're probably using an uncommon filesystem setup. No problem.\n" % path_new)
 
 
 def cmd_sqldump(args, config):
@@ -663,6 +711,10 @@ def main():
     parser_run.add_argument("command_", nargs=1)
     parser_run.add_argument("cmdargs", nargs="*")
     
+    # cmd: startproject
+    parser_startproject = command_parsers.add_parser("startproject")
+    parser_startproject.add_argument("name", nargs=1)
+    
     # cmd: delete
     parser_delete = command_parsers.add_parser("delete")
     parser_delete.add_argument("label", nargs=1)
@@ -697,6 +749,7 @@ def main():
         "deploy": cmd_deploy,
         "sqldump": cmd_sqldump,
         "run": cmd_run,
+        "startproject": cmd_startproject,
         "delete": cmd_delete,
         "list": cmd_list,
         "manage": cmd_manage,

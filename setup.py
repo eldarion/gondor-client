@@ -21,6 +21,7 @@ setup(
     package_data = {
         "gondor": [
             "ssl/*.crt",
+            "conf/project_template/requirements/*.txt",
         ]
     },
     zip_safe = False,
