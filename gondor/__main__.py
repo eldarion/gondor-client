@@ -10,6 +10,8 @@ import time
 import urllib
 import urllib2
 import zlib
+import tarfile
+import gzip
 
 try:
     import simplejson as json
@@ -180,7 +182,7 @@ def cmd_deploy(args, config):
     except OSError:
         error("unable to find a .gondor directory.\n")
     
-    tarball_path = None
+    tar_path, tarball_path = None, None
     
     try:
         out("Reading configuration... ")
@@ -195,6 +197,11 @@ def cmd_deploy(args, config):
             "migrations": config_value(local_config, "app", "migrations"),
             "staticfiles": config_value(local_config, "app", "staticfiles"),
         }
+        include_files = [
+            x.strip()
+            for x in config_value(local_config, "files", "include", "").split("\n")
+            if x
+        ]
         out("[ok]\n")
         
         if vcs == "git":
@@ -207,7 +214,7 @@ def cmd_deploy(args, config):
                 error("could not map '%s' to a SHA\n" % commit)
             if commit == "HEAD":
                 commit = sha
-            tarball_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
+            tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
             cmd = ["git", "archive", "--format=tar", commit, "-o", tarball_path]
         elif vcs == "hg":
             try:
@@ -225,7 +232,7 @@ def cmd_deploy(args, config):
                 sha = refs[commit]
             except KeyError:
                 error("could not map '%s' to a SHA\n" % commit)
-            tarball_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
+            tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
             cmd = ["hg", "archive", "-p", ".", "-t", "tar", "-r", commit, tarball_path]
         else:
             error("'%s' is not a valid version control system for Gondor\n" % vcs)
@@ -234,6 +241,24 @@ def cmd_deploy(args, config):
         check, output = utils.check_output(cmd, cwd=repo_root)
         if check != 0:
             error(output)
+        out("[ok]\n")
+        
+        if len(include_files):
+            out("Adding untracked files... ")
+            with tarfile.open(tar_path, "a") as tar_fp:
+                for f in include_files:
+                    tar_fp.add(os.path.abspath(os.path.join(repo_root, f)), arcname=f)
+            out("[ok]\n")
+        
+        tarball_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
+        
+        out("Compressing tarball... ")
+        with open(tar_path, "rb") as tar_fp:
+            try:
+                tarball = gzip.open(tarball_path, mode="wb")
+                tarball.writelines(tar_fp)
+            finally:
+                tarball.close()
         out("[ok]\n")
         
         pb = ProgressBar(0, 100, 77)
@@ -269,6 +294,8 @@ def cmd_deploy(args, config):
                 data = json.loads(response.read())
     
     finally:
+        if tar_path:
+            os.unlink(tar_path)
         if tarball_path:
             os.unlink(tarball_path)
     
