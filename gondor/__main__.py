@@ -559,9 +559,10 @@ def cmd_list(args, config):
         instances = sorted(data["instances"], key=lambda v: v["label"])
         if instances:
             for instance in instances:
-                out("%s [%s] %s\n" % (
+                out("%s [%s] %s %s\n" % (
                     instance["label"],
                     instance["kind"],
+                    instance["url"],
                     instance["last_deployment"]["sha"][:8]
                 ))
         else:
