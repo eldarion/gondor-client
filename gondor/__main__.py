@@ -73,18 +73,30 @@ def cmd_init(args, config):
     if not os.path.exists(gondor_dir):
         os.mkdir(gondor_dir)
         
-        # write out a .gondor/config INI file
-        new_config = ConfigParser.RawConfigParser()
-        new_config.add_section("gondor")
-        new_config.set("gondor", "site_key", site_key)
-        new_config.set("gondor", "vcs", vcs)
-        new_config.add_section("app")
-        new_config.set("app", "requirements_file", "requirements/project.txt")
-        new_config.set("app", "wsgi_entry_point", "deploy.wsgi")
-        new_config.set("app", "migrations", "none")
-        new_config.set("app", "staticfiles", "off")
+        config_file = """[gondor]
+site_key = %(site_key)s
+vcs = %(vcs)s
+
+[app]
+; this path is relative to your repository root
+requirements_file = requirements/project.txt
+
+; this is a Python path and the default value maps to deploy/wsgi.py on disk
+wsgi_entry_point = deploy.wsgi
+
+; can be either nashvegas, south or none
+migrations = none
+
+; whether or not to run collectstatic (or build_static if collectstatic is not
+; available)
+staticfiles = off
+""" % {
+    "site_key": site_key,
+    "vcs": vcs
+}
+        
         with open(os.path.join(gondor_dir, "config"), "wb") as cf:
-            new_config.write(cf)
+            cf.write(config_file)
 
 
 def cmd_create(args, config):
