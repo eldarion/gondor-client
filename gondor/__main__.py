@@ -230,6 +230,9 @@ def cmd_deploy(args, config):
         except KeyboardInterrupt:
             out("\nCanceling uploading... [ok]\n")
             sys.exit(1)
+        except urllib2.HTTPError, e:
+            out("\nReceived an error [%d: %s]" % e.code, e.read())
+            sys.exit(1)
         else:
             out("\n")
             data = json.loads(response.read())
