@@ -2,9 +2,12 @@
 CHANGELOG
 =========
 
-dev
-===
+1.0b1.post2
+===========
 
+ * added a way to display errors from new API (client soon to be updated to
+   support everything nicely)
+ * display URL on every deploy and in list
  * added staticfiles option to [app]; allowing values "on" or "off"
  * improved create success message regarding how to deploy to be friendly to
    all supported vcs users
