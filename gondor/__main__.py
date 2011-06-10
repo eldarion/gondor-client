@@ -78,7 +78,7 @@ site_key = %(site_key)s
 vcs = %(vcs)s
 
 [app]
-; this path is relative to your repository root
+; this path is relative to your project root (the directory .gondor is in)
 requirements_file = requirements/project.txt
 
 ; this is a Python path and the default value maps to deploy/wsgi.py on disk
