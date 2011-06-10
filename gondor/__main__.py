@@ -140,7 +140,11 @@ def cmd_create(args, config):
         "kind": kind,
         "project_root": os.path.basename(project_root),
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -243,7 +247,7 @@ def cmd_deploy(args, config):
             out("\nCanceling uploading... [ok]\n")
             sys.exit(1)
         except urllib2.HTTPError, e:
-            out("\nReceived an error [%d: %s]" % e.code, e.read())
+            out("\nReceived an error [%d: %s]" % (e.code, e.read()))
             sys.exit(1)
         else:
             out("\n")
@@ -319,7 +323,11 @@ def cmd_sqldump(args, config):
         "site_key": site_key,
         "label": label,
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -464,7 +472,11 @@ def cmd_run(args, config):
         "params": json.dumps(params),
         "app": json.dumps(app_config),
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -533,7 +545,11 @@ def cmd_delete(args, config):
         "site_key": site_key,
         "instance_label": instance_label,
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -566,7 +582,11 @@ def cmd_list(args, config):
         "version": __version__,
         "site_key": site_key,
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     
     if data["status"] == "success":
@@ -626,7 +646,11 @@ def cmd_manage(args, config):
     params = params.items()
     for oparg in opargs:
         params.append(("arg", oparg))
-    response = make_api_call(config, url, params, extra_handlers=handlers)
+    try:
+        response = make_api_call(config, url, params, extra_handlers=handlers)
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     if not sys.stdin.isatty():
         out("\n")
     out("Running... ")
