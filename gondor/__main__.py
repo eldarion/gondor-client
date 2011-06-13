@@ -103,7 +103,7 @@ staticfiles = off
         out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
         out("check .gondor/config (in this directory) for correct values for your\n")
         out("application. Once you are ready, run:\n\n")
-        out("    gondor deploy primary %s" % {"git": "master", "hg": "default"}[vcs])
+        out("    gondor deploy primary %s\n" % {"git": "master", "hg": "default"}[vcs])
     else:
         out("Detecting existing .gondor/config. Not overriding.\n")
 
