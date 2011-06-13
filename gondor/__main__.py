@@ -202,7 +202,12 @@ def cmd_deploy(args, config):
                 repo_root = utils.find_nearest(os.getcwd(), ".git")
             except OSError:
                 error("unable to find a .git directory.\n")
-            sha = utils.check_output("git rev-parse %s" % commit).strip()
+            try:
+                subprocess.check_call(["git", "rev-parse", commit], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError:
+                error("could not map '%s' to a SHA\n" % commit)
+            else:
+                sha = utils.check_output("git rev-parse %s" % commit).strip()
             if commit == "HEAD":
                 commit = sha
             tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
