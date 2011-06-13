@@ -75,18 +75,39 @@ def cmd_init(args, config):
     if not os.path.exists(gondor_dir):
         os.mkdir(gondor_dir)
         
-        # write out a .gondor/config INI file
-        new_config = ConfigParser.RawConfigParser()
-        new_config.add_section("gondor")
-        new_config.set("gondor", "site_key", site_key)
-        new_config.set("gondor", "vcs", vcs)
-        new_config.add_section("app")
-        new_config.set("app", "requirements_file", "requirements/project.txt")
-        new_config.set("app", "wsgi_entry_point", "deploy.wsgi")
-        new_config.set("app", "migrations", "none")
-        new_config.set("app", "staticfiles", "off")
+        config_file = """[gondor]
+site_key = %(site_key)s
+vcs = %(vcs)s
+
+[app]
+; this path is relative to your project root (the directory .gondor is in)
+requirements_file = requirements/project.txt
+
+; this is a Python path and the default value maps to deploy/wsgi.py on disk
+wsgi_entry_point = deploy.wsgi
+
+; can be either nashvegas, south or none
+migrations = none
+
+; whether or not to run collectstatic (or build_static if collectstatic is not
+; available)
+staticfiles = off
+""" % {
+    "site_key": site_key,
+    "vcs": vcs
+}
+        
+        out("Writing configuration (.gondor/config)... ")
         with open(os.path.join(gondor_dir, "config"), "wb") as cf:
-            new_config.write(cf)
+            cf.write(config_file)
+        out("[ok]\n")
+         
+        out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
+        out("check .gondor/config (in this directory) for correct values for your\n")
+        out("application. Once you are ready, run:\n\n")
+        out("    gondor deploy primary %s\n" % {"git": "master", "hg": "default"}[vcs])
+    else:
+        out("Detecting existing .gondor/config. Not overriding.\n")
 
 
 def cmd_create(args, config):
@@ -130,7 +151,11 @@ def cmd_create(args, config):
         "kind": kind,
         "project_root": os.path.basename(project_root),
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -179,7 +204,12 @@ def cmd_deploy(args, config):
                 repo_root = utils.find_nearest(os.getcwd(), ".git")
             except OSError:
                 error("unable to find a .git directory.\n")
-            sha = utils.check_output("git rev-parse %s" % commit).strip()
+            try:
+                subprocess.check_call(["git", "rev-parse", commit], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError:
+                error("could not map '%s' to a SHA\n" % commit)
+            else:
+                sha = utils.check_output("git rev-parse %s" % commit).strip()
             if commit == "HEAD":
                 commit = sha
             tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
@@ -231,6 +261,9 @@ def cmd_deploy(args, config):
             response = make_api_call(config, url, params, extra_handlers=handlers)
         except KeyboardInterrupt:
             out("\nCanceling uploading... [ok]\n")
+            sys.exit(1)
+        except urllib2.HTTPError, e:
+            out("\nReceived an error [%d: %s]" % (e.code, e.read()))
             sys.exit(1)
         else:
             out("\n")
@@ -369,7 +402,11 @@ def cmd_sqldump(args, config):
         "site_key": site_key,
         "label": label,
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -514,7 +551,11 @@ def cmd_run(args, config):
         "params": json.dumps(params),
         "app": json.dumps(app_config),
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -583,7 +624,11 @@ def cmd_delete(args, config):
         "site_key": site_key,
         "instance_label": instance_label,
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -616,7 +661,11 @@ def cmd_list(args, config):
         "version": __version__,
         "site_key": site_key,
     }
-    response = make_api_call(config, url, urllib.urlencode(params))
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     data = json.loads(response.read())
     
     if data["status"] == "success":
@@ -624,9 +673,10 @@ def cmd_list(args, config):
         instances = sorted(data["instances"], key=lambda v: v["label"])
         if instances:
             for instance in instances:
-                out("%s [%s] %s\n" % (
+                out("%s [%s] %s %s\n" % (
                     instance["label"],
                     instance["kind"],
+                    instance["url"],
                     instance["last_deployment"]["sha"][:8]
                 ))
         else:
@@ -675,7 +725,11 @@ def cmd_manage(args, config):
     params = params.items()
     for oparg in opargs:
         params.append(("arg", oparg))
-    response = make_api_call(config, url, params, extra_handlers=handlers)
+    try:
+        response = make_api_call(config, url, params, extra_handlers=handlers)
+    except urllib2.HTTPError, e:
+        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        sys.exit(1)
     if not sys.stdin.isatty():
         out("\n")
     out("Running... ")
