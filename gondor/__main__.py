@@ -95,8 +95,15 @@ staticfiles = off
     "vcs": vcs
 }
         
+        out("Writing configuration (.gondor/config)... ")
         with open(os.path.join(gondor_dir, "config"), "wb") as cf:
             cf.write(config_file)
+         out("[ok]\n")
+         
+         out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
+         out("check .gondor/config (in this directory) for correct values for your\n")
+         out("application. Once you are ready, run:\n\n")
+         out("    gondor deploy primary %s" % {"git": "master", "hg": "default"}[vcs])
 
 
 def cmd_create(args, config):
