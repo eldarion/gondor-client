@@ -73,6 +73,13 @@ def cmd_init(args, config):
         vcs = "git"
     
     if not os.path.exists(gondor_dir):
+        if repo_root == os.getcwd():
+            out("WARNING: we've detected your repo root (directory containing .%s) is the same\n" % vcs)
+            out("directory as your project root. This is certainly allowed, but many of our\n")
+            out("users have problems with this setup because the parent directory is *not* the\n")
+            out("same on Gondor as it is locally. See https://gondor.io/support/project-layout/\n")
+            out("for more information on the suggested layout.\n\n")
+        
         os.mkdir(gondor_dir)
         
         config_file = """[gondor]
