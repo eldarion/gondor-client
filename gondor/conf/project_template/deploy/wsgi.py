@@ -1,8 +1,17 @@
-import os, sys
+import os
+import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)), os.pardir, os.pardir)))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)), os.pardir)))
+from os.path import abspath, dirname, join
+
+sys.path.insert(0, abspath(join(dirname(__file__), os.pardir, os.pardir)))
+sys.path.insert(0, abspath(join(dirname(__file__), os.pardir)))
+
+os.environ["DJANGO_SETTINGS_MODULE"] = "{{ project_name }}.settings"
+
+# force settings to import now to get better feedback on Gondor when project
+# is not configured correctly.
+from django.conf import settings
+settings._setup()
 
 from django.core.handlers.wsgi import WSGIHandler
-os.environ["DJANGO_SETTINGS_MODULE"] = "{{ project_name }}.settings"
 application = WSGIHandler()
