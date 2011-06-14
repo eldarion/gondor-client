@@ -1,17 +1,17 @@
 import argparse
 import ConfigParser
 import getpass
+import gzip
 import os
 import re
 import stat
 import subprocess
 import sys
+import tarfile
 import time
 import urllib
 import urllib2
 import zlib
-import tarfile
-import gzip
 
 try:
     import simplejson as json
@@ -209,7 +209,7 @@ def cmd_deploy(args, config):
                 repo_root = utils.find_nearest(os.getcwd(), ".git")
             except OSError:
                 error("unable to find a .git directory.\n")
-            check, sha = utils.check_output(["git", "rev-parse", commit])
+            check, sha = utils.run_proc(["git", "rev-parse", commit])
             if check != 0:
                 error("could not map '%s' to a SHA\n" % commit)
             if commit == "HEAD":
@@ -221,8 +221,8 @@ def cmd_deploy(args, config):
                 repo_root = utils.find_nearest(os.getcwd(), ".hg")
             except OSError:
                 error("unable to find a .hg directory.\n")
-            branches_stdout = utils.check_output(["hg", "branches"])[1]
-            tags_stdout = utils.check_output(["hg", "tags"])[1]
+            branches_stdout = utils.run_proc(["hg", "branches"])[1]
+            tags_stdout = utils.run_proc(["hg", "tags"])[1]
             refs = {}
             for line in branches_stdout.splitlines() + tags_stdout.splitlines():
                 m = re.search(r"([\w\d\.-]+)\s*([\d]+):([\w]+)$", line)
@@ -238,12 +238,12 @@ def cmd_deploy(args, config):
             error("'%s' is not a valid version control system for Gondor\n" % vcs)
         
         out("Archiving code from %s... " % commit)
-        check, output = utils.check_output(cmd, cwd=repo_root)
+        check, output = utils.run_proc(cmd, cwd=repo_root)
         if check != 0:
             error(output)
         out("[ok]\n")
         
-        if len(include_files):
+        if include_files:
             out("Adding untracked files... ")
             with tarfile.open(tar_path, "a") as tar_fp:
                 for f in include_files:

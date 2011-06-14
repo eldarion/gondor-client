@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 
-def check_output(cmd, **kwargs):
+def run_proc(cmd, **kwargs):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, **kwargs)
     out = p.communicate()[0]
     return (p.returncode, out.strip())
