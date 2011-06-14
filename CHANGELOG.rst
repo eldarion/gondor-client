@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.0b1.post9
+===========
+
+ * added warning about repo root being same as project root
+
 1.0b1.post8 (the Donald Stufft release)
 =======================================
 
