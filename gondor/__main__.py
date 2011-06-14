@@ -245,9 +245,12 @@ def cmd_deploy(args, config):
         
         if include_files:
             out("Adding untracked files... ")
-            with tarfile.open(tar_path, "a") as tar_fp:
+            try:
+                tar_fp = tarfile.open(tar_path, "a")
                 for f in include_files:
                     tar_fp.add(os.path.abspath(os.path.join(repo_root, f)), arcname=f)
+            finally:
+                tar_fp.close()
             out("[ok]\n")
         
         tarball_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
