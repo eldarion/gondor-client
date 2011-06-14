@@ -327,20 +327,20 @@ def cmd_startproject(args, config):
             message = "make sure the name begins with a letter or underscore"
         else:
             message = "use only numbers, letters and underscores"
-        raise error("%r is not a valid project name. Please %s." % (name, message))
+        raise error("%r is not a valid project name. Please %s.\n" % (name, message))
     
     try:
         __import__(name)
     except ImportError:
         pass
     else:
-        error("%r conflicts with the name of an existing Python module and cannot be used as a project name. Please try another name." % name)
+        error("%r conflicts with the name of an existing Python module and cannot be used as a project name. Please try another name.\n" % name)
     
     project_dir = os.path.join(os.getcwd(), name)
     try:
         os.mkdir(project_dir)
     except OSError, e:
-        error("Cannot create the project directory.")
+        error("Cannot create the project directory.\n")
     
     template_dir = os.path.join(__path__[0], "conf", "project_template")
     
@@ -380,6 +380,15 @@ def cmd_startproject(args, config):
     settings_contents = re.sub(r"(?<=SECRET_KEY = ')'", secret_key + "'", settings_contents)
     fp.write(settings_contents)
     fp.close()
+    
+    out("Project written to %s\n" % name)
+    out("\nNext steps (in current directory):\n")
+    out("\n    <vcs> init\n")
+    out("    <vcs> add .\n")
+    out("    <vcs> commit\n")
+    out("    cd %s\n" % name)
+    out("    gondor init <site_key>\n")
+    out("    gondor deploy primary master\n")
 
 
 def cmd_sqldump(args, config):
