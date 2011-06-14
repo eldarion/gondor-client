@@ -1,11 +1,13 @@
 import argparse
 import ConfigParser
 import getpass
+import gzip
 import os
 import re
 import stat
 import subprocess
 import sys
+import tarfile
 import time
 import urllib
 import urllib2
@@ -180,7 +182,7 @@ def cmd_deploy(args, config):
     except OSError:
         error("unable to find a .gondor directory.\n")
     
-    tarball = None
+    tar_path, tarball_path = None, None
     
     try:
         out("Reading configuration... ")
@@ -195,6 +197,11 @@ def cmd_deploy(args, config):
             "migrations": config_value(local_config, "app", "migrations"),
             "staticfiles": config_value(local_config, "app", "staticfiles"),
         }
+        include_files = [
+            x.strip()
+            for x in config_value(local_config, "files", "include", "").split("\n")
+            if x
+        ]
         out("[ok]\n")
         
         if vcs == "git":
@@ -202,23 +209,20 @@ def cmd_deploy(args, config):
                 repo_root = utils.find_nearest(os.getcwd(), ".git")
             except OSError:
                 error("unable to find a .git directory.\n")
-            try:
-                subprocess.check_call(["git", "rev-parse", commit], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError:
+            check, sha = utils.run_proc(["git", "rev-parse", commit])
+            if check != 0:
                 error("could not map '%s' to a SHA\n" % commit)
-            else:
-                sha = utils.check_output("git rev-parse %s" % commit).strip()
             if commit == "HEAD":
                 commit = sha
-            tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
-            cmd = "(cd %s && git archive --format=tar %s | gzip > %s)" % (repo_root, commit, tarball)
+            tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
+            cmd = ["git", "archive", "--format=tar", commit, "-o", tar_path]
         elif vcs == "hg":
             try:
                 repo_root = utils.find_nearest(os.getcwd(), ".hg")
             except OSError:
                 error("unable to find a .hg directory.\n")
-            branches_stdout = utils.check_output("hg branches")
-            tags_stdout = utils.check_output("hg tags")
+            branches_stdout = utils.run_proc(["hg", "branches"])[1]
+            tags_stdout = utils.run_proc(["hg", "tags"])[1]
             refs = {}
             for line in branches_stdout.splitlines() + tags_stdout.splitlines():
                 m = re.search(r"([\w\d\.-]+)\s*([\d]+):([\w]+)$", line)
@@ -228,48 +232,75 @@ def cmd_deploy(args, config):
                 sha = refs[commit]
             except KeyError:
                 error("could not map '%s' to a SHA\n" % commit)
-            tarball = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
-            cmd = "(cd %s && hg archive -p . -t tgz -r %s %s)" % (repo_root, commit, tarball)
+            tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
+            cmd = ["hg", "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
         else:
             error("'%s' is not a valid version control system for Gondor\n" % vcs)
         
-        out("Building tarball from %s... " % commit)
-        subprocess.call([cmd], shell=True)
+        out("Archiving code from %s... " % commit)
+        check, output = utils.run_proc(cmd, cwd=repo_root)
+        if check != 0:
+            error(output)
+        out("[ok]\n")
+        
+        if include_files:
+            out("Adding untracked files... ")
+            try:
+                tar_fp = tarfile.open(tar_path, "a")
+                for f in include_files:
+                    tar_fp.add(os.path.abspath(os.path.join(repo_root, f)), arcname=f)
+            finally:
+                tar_fp.close()
+            out("[ok]\n")
+        
+        tarball_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
+        
+        out("Building tarball... ")
+        with open(tar_path, "rb") as tar_fp:
+            try:
+                tarball = gzip.open(tarball_path, mode="wb")
+                tarball.writelines(tar_fp)
+            finally:
+                tarball.close()
         out("[ok]\n")
         
         pb = ProgressBar(0, 100, 77)
         out("Pushing tarball to Gondor... \n")
         url = "%s/deploy/" % endpoint
-        params = {
-            "version": __version__,
-            "site_key": site_key,
-            "label": label,
-            "sha": sha,
-            "commit": commit,
-            "tarball": open(tarball, "rb"),
-            "project_root": os.path.relpath(project_root, repo_root),
-            "app": json.dumps(app_config),
-        }
-        handlers = [
-            http.MultipartPostHandler,
-            http.UploadProgressHandler(pb, ssl=True),
-            http.UploadProgressHandler(pb, ssl=False)
-        ]
-        try:
-            response = make_api_call(config, url, params, extra_handlers=handlers)
-        except KeyboardInterrupt:
-            out("\nCanceling uploading... [ok]\n")
-            sys.exit(1)
-        except urllib2.HTTPError, e:
-            out("\nReceived an error [%d: %s]" % (e.code, e.read()))
-            sys.exit(1)
-        else:
-            out("\n")
-            data = json.loads(response.read())
+        
+        with open(tarball_path, "rb") as tarball:
+            params = {
+                "version": __version__,
+                "site_key": site_key,
+                "label": label,
+                "sha": sha,
+                "commit": commit,
+                "tarball": tarball,
+                "project_root": os.path.relpath(project_root, repo_root),
+                "app": json.dumps(app_config),
+            }
+            handlers = [
+                http.MultipartPostHandler,
+                http.UploadProgressHandler(pb, ssl=True),
+                http.UploadProgressHandler(pb, ssl=False)
+            ]
+            try:
+                response = make_api_call(config, url, params, extra_handlers=handlers)
+            except KeyboardInterrupt:
+                out("\nCanceling uploading... [ok]\n")
+                sys.exit(1)
+            except urllib2.HTTPError, e:
+                out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+                sys.exit(1)
+            else:
+                out("\n")
+                data = json.loads(response.read())
     
     finally:
-        if tarball:
-            os.unlink(tarball)
+        if tar_path and os.path.exists(tar_path):
+            os.unlink(tar_path)
+        if tarball_path and os.path.exists(tarball_path):
+            os.unlink(tarball_path)
     
     if data["status"] == "error":
         error("%s\n" % data["message"])

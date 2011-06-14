@@ -3,9 +3,10 @@ import subprocess
 import sys
 
 
-def check_output(cmd):
-    p = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
-    return p.communicate()[0]
+def run_proc(cmd, **kwargs):
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, **kwargs)
+    out = p.communicate()[0]
+    return (p.returncode, out.strip())
 
 
 def find_nearest(directory, search):
