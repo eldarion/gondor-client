@@ -270,7 +270,7 @@ def cmd_deploy(args, config):
     
     finally:
         if tarball_path:
-            os.unlink(tarball)
+            os.unlink(tarball_path)
     
     if data["status"] == "error":
         error("%s\n" % data["message"])
