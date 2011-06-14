@@ -215,7 +215,7 @@ def cmd_deploy(args, config):
             if commit == "HEAD":
                 commit = sha
             tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
-            cmd = ["git", "archive", "--format=tar", commit, "-o", tarball_path]
+            cmd = ["git", "archive", "--format=tar", commit, "-o", tar_path]
         elif vcs == "hg":
             try:
                 repo_root = utils.find_nearest(os.getcwd(), ".hg")
@@ -233,11 +233,11 @@ def cmd_deploy(args, config):
             except KeyError:
                 error("could not map '%s' to a SHA\n" % commit)
             tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
-            cmd = ["hg", "archive", "-p", ".", "-t", "tar", "-r", commit, tarball_path]
+            cmd = ["hg", "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
         else:
             error("'%s' is not a valid version control system for Gondor\n" % vcs)
         
-        out("Building tarball from %s... " % commit)
+        out("Archiving code from %s... " % commit)
         check, output = utils.check_output(cmd, cwd=repo_root)
         if check != 0:
             error(output)
@@ -252,7 +252,7 @@ def cmd_deploy(args, config):
         
         tarball_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
         
-        out("Compressing tarball... ")
+        out("Building tarball... ")
         with open(tar_path, "rb") as tar_fp:
             try:
                 tarball = gzip.open(tarball_path, mode="wb")
@@ -294,9 +294,9 @@ def cmd_deploy(args, config):
                 data = json.loads(response.read())
     
     finally:
-        if tar_path:
+        if tar_path and os.path.exists(tar_path):
             os.unlink(tar_path)
-        if tarball_path:
+        if tarball_path and os.path.exists(tarball_path):
             os.unlink(tarball_path)
     
     if data["status"] == "error":
