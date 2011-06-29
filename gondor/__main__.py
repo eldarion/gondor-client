@@ -203,6 +203,7 @@ def cmd_deploy(args, config):
             "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
             "migrations": config_value(local_config, "app", "migrations"),
             "staticfiles": config_value(local_config, "app", "staticfiles"),
+            "site_media_url": config_value(local_config, "app", "site_media_url"),
         }
         include_files = [
             x.strip()
@@ -454,6 +455,7 @@ def cmd_run(args, config):
         "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
         "migrations": config_value(local_config, "app", "migrations"),
         "staticfiles": config_value(local_config, "app", "staticfiles"),
+        "site_media_url": config_value(local_config, "app", "site_media_url"),
     }
     out("[ok]\n")
     

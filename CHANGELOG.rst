@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.0b1.post10
+============
+
+ * added [app] site_media_url for overriding nginx site media URL
+
 1.0b1.post9
 ===========
 
