@@ -90,7 +90,8 @@ vcs = %(vcs)s
 ; this path is relative to your project root (the directory .gondor is in)
 requirements_file = requirements/project.txt
 
-; this is a Python path and the default value maps to deploy/wsgi.py on disk
+; this is a Python module path; if the value is deploy.wsgi it would map to
+; deploy/wsgi.py on disk (relative to the directory manage.py lives in)
 wsgi_entry_point = deploy.wsgi
 
 ; can be either nashvegas, south or none
