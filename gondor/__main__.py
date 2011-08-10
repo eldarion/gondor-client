@@ -218,24 +218,28 @@ def cmd_deploy(args, config):
                 repo_root = utils.find_nearest(os.getcwd(), ".git")
             except OSError:
                 error("unable to find a .git directory.\n")
-            check, sha = utils.run_proc(["git", "rev-parse", commit])
+            try:
+                git = utils.find_command("git")
+            except utils.BadCommand, e:
+                error(e.args[0])
+            check, sha = utils.run_proc([git, "rev-parse", commit])
             if check != 0:
                 error("could not map '%s' to a SHA\n" % commit)
             if commit == "HEAD":
                 commit = sha
             tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
-            try:
-                git = utils.find_command("git")
-            except utils.BadCommand, e:
-                error(e.args[0])
             cmd = [git, "archive", "--format=tar", commit, "-o", tar_path]
         elif vcs == "hg":
             try:
                 repo_root = utils.find_nearest(os.getcwd(), ".hg")
             except OSError:
                 error("unable to find a .hg directory.\n")
-            branches_stdout = utils.run_proc(["hg", "branches"])[1]
-            tags_stdout = utils.run_proc(["hg", "tags"])[1]
+            try:
+                hg = utils.find_command("hg")
+            except utils.BadCommand, e:
+                error(e.args[0])
+            branches_stdout = utils.run_proc([hg, "branches"])[1]
+            tags_stdout = utils.run_proc([hg, "tags"])[1]
             refs = {}
             for line in branches_stdout.splitlines() + tags_stdout.splitlines():
                 m = re.search(r"([\w\d\.-]+)\s*([\d]+):([\w]+)$", line)
@@ -246,10 +250,6 @@ def cmd_deploy(args, config):
             except KeyError:
                 error("could not map '%s' to a SHA\n" % commit)
             tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
-            try:
-                hg = utils.find_command("hg")
-            except utils.BadCommand, e:
-                error(e.args[0])
             cmd = [hg, "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
         else:
             error("'%s' is not a valid version control system for Gondor\n" % vcs)
