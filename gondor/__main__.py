@@ -224,7 +224,11 @@ def cmd_deploy(args, config):
             if commit == "HEAD":
                 commit = sha
             tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
-            cmd = ["git", "archive", "--format=tar", commit, "-o", tar_path]
+            try:
+                git = utils.find_command("git")
+            except utils.BadCommand, e:
+                error(e.args[0])
+            cmd = [git, "archive", "--format=tar", commit, "-o", tar_path]
         elif vcs == "hg":
             try:
                 repo_root = utils.find_nearest(os.getcwd(), ".hg")
@@ -242,7 +246,11 @@ def cmd_deploy(args, config):
             except KeyError:
                 error("could not map '%s' to a SHA\n" % commit)
             tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
-            cmd = ["hg", "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
+            try:
+                hg = utils.find_command("hg")
+            except utils.BadCommand, e:
+                error(e.args[0])
+            cmd = [hg, "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
         else:
             error("'%s' is not a valid version control system for Gondor\n" % vcs)
         
