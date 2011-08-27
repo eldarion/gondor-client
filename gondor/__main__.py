@@ -348,7 +348,7 @@ def cmd_deploy(args, config):
                 out("[error]\n")
                 error("%s\n" % data["message"])
             if data["status"] == "success":
-                if data["state"] == "deployed":
+                if data["state"] == "finished":
                     out("[ok]\n")
                     if instance_url:
                         out("\nVisit: %s\n" % instance_url)
