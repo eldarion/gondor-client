@@ -561,9 +561,16 @@ def cmd_run(args, config):
                 out("[error]\n")
                 out("\nError: %s\n" % data["message"])
             if data["status"] == "success":
-                if data["state"] == "executed":
-                    out("[ok]\n")
-                    out("\n%s" % data["result"]["output"])
+                if data["state"] == "finished":
+                    out("[ok]\n\n")
+                    d = zlib.decompressobj(16+zlib.MAX_WBITS)
+                    cs = 16 * 1024
+                    response = urllib2.urlopen(data["result"]["public_url"])
+                    while True:
+                        chunk = response.read(cs)
+                        if not chunk:
+                            break
+                        out(d.decompress(chunk))
                     break
                 elif data["state"] == "failed":
                     out("[failed]\n")
