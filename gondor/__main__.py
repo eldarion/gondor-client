@@ -348,7 +348,7 @@ def cmd_deploy(args, config):
                 out("[error]\n")
                 error("%s\n" % data["message"])
             if data["status"] == "success":
-                if data["state"] == "deployed":
+                if data["state"] == "finished":
                     out("[ok]\n")
                     if instance_url:
                         out("\nVisit: %s\n" % instance_url)
@@ -561,9 +561,16 @@ def cmd_run(args, config):
                 out("[error]\n")
                 out("\nError: %s\n" % data["message"])
             if data["status"] == "success":
-                if data["state"] == "executed":
-                    out("[ok]\n")
-                    out("\n%s" % data["result"]["output"])
+                if data["state"] == "finished":
+                    out("[ok]\n\n")
+                    d = zlib.decompressobj(16+zlib.MAX_WBITS)
+                    cs = 16 * 1024
+                    response = urllib2.urlopen(data["result"]["public_url"])
+                    while True:
+                        chunk = response.read(cs)
+                        if not chunk:
+                            break
+                        out(d.decompress(chunk))
                     break
                 elif data["state"] == "failed":
                     out("[failed]\n")
@@ -723,34 +730,37 @@ def cmd_manage(args, config):
         out("[error]\n")
         error("%s\n" % data["message"])
     if data["status"] == "success":
-        task_id = data["task"]
-        while True:
-            params = {
-                "version": __version__,
-                "site_key": site_key,
-                "instance_label": instance_label,
-                "task_id": task_id,
-            }
-            url = "%s/task_status/" % endpoint
-            response = make_api_call(config, url, urllib.urlencode(params))
-            data = json.loads(response.read())
-            if data["status"] == "error":
-                out("[error]\n")
-                out("\nError: %s\n" % data["message"])
-            if data["status"] == "success":
-                if data["state"] == "finished":
-                    out("[ok]\n")
-                    break
-                elif data["state"] == "failed":
-                    out("[failed]\n")
-                    out("\n%s\n" % data["reason"])
-                    sys.exit(1)
-                elif data["state"] == "locked":
-                    out("[locked]\n")
-                    out("\nYour task failed due to being locked. This means there is another task already in progress.\n")
-                    sys.exit(1)
-                else:
-                    time.sleep(2)
+        if "task" in data:
+            task_id = data["task"]
+            while True:
+                params = {
+                    "version": __version__,
+                    "site_key": site_key,
+                    "instance_label": instance_label,
+                    "task_id": task_id,
+                }
+                url = "%s/task_status/" % endpoint
+                response = make_api_call(config, url, urllib.urlencode(params))
+                data = json.loads(response.read())
+                if data["status"] == "error":
+                    out("[error]\n")
+                    out("\nError: %s\n" % data["message"])
+                if data["status"] == "success":
+                    if data["state"] == "finished":
+                        out("[ok]\n")
+                        break
+                    elif data["state"] == "failed":
+                        out("[failed]\n")
+                        out("\n%s\n" % data["reason"])
+                        sys.exit(1)
+                    elif data["state"] == "locked":
+                        out("[locked]\n")
+                        out("\nYour task failed due to being locked. This means there is another task already in progress.\n")
+                        sys.exit(1)
+                    else:
+                        time.sleep(2)
+        else:
+            out("[ok]\n")
 
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
