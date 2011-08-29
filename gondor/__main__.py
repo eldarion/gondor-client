@@ -100,6 +100,10 @@ migrations = none
 
 ; Whether or not to run collectstatic during deployment
 staticfiles = off
+
+; Path to map frontend servers to for your site media (includes both STATIC_URL
+; and MEDIA_URL; you must ensure they are under the same path)
+site_media_url = /site_media
 """ % {
     "site_key": site_key,
     "vcs": vcs
