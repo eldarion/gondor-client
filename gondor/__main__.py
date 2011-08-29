@@ -87,18 +87,18 @@ site_key = %(site_key)s
 vcs = %(vcs)s
 
 [app]
-; this path is relative to your project root (the directory .gondor is in)
-requirements_file = requirements/project.txt
+; This path is relative to your project root (the directory .gondor is in)
+requirements_file = requirements.txt
 
-; this is a Python module path; if the value is deploy.wsgi it would map to
-; deploy/wsgi.py on disk (relative to the directory manage.py lives in)
-wsgi_entry_point = deploy.wsgi
+; The wsgi entry point of your application in two parts separated by a colon.
+; wsgi:deploy where wsgi is the Python module which should be importable and
+; application which represents the callable in the module.
+wsgi_entry_point = wsgi:application
 
-; can be either nashvegas, south or none
+; Can be either nashvegas, south or none
 migrations = none
 
-; whether or not to run collectstatic (or build_static if collectstatic is not
-; available)
+; Whether or not to run collectstatic during deployment
 staticfiles = off
 """ % {
     "site_key": site_key,
