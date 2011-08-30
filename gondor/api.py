@@ -15,8 +15,8 @@ def make_api_call(config, url, params, extra_handlers=None):
     request.add_unredirected_header(
         "Authorization",
         "Basic %s" % base64.b64encode("%s:%s" % (
-            config["username"],
-            config["password"])
-        ).strip()
+            config["auth.username"],
+            config["auth.key"] or config["auth.password"]
+        )).strip()
     )
     return opener.open(request)
