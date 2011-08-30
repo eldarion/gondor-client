@@ -142,7 +142,7 @@ def cmd_create(args, env, config):
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        out("\nReceived an error [%d: %s]\n" % (e.code, e.read()))
         sys.exit(1)
     data = json.loads(response.read())
     if data["status"] == "error":
@@ -253,7 +253,7 @@ def cmd_deploy(args, env, config):
                 out("\nCanceling uploading... [ok]\n")
                 sys.exit(1)
             except urllib2.HTTPError, e:
-                out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+                out("\nReceived an error [%d: %s]\n" % (e.code, e.read()))
                 sys.exit(1)
             else:
                 out("\n")
@@ -326,7 +326,7 @@ def cmd_sqldump(args, env, config):
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        out("\nReceived an error [%d: %s]\n" % (e.code, e.read()))
         sys.exit(1)
     data = json.loads(response.read())
     
@@ -442,7 +442,7 @@ def cmd_run(args, env, config):
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        out("\nReceived an error [%d: %s]\n" % (e.code, e.read()))
         sys.exit(1)
     data = json.loads(response.read())
     
@@ -509,7 +509,7 @@ def cmd_delete(args, env, config):
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        out("\nReceived an error [%d: %s]\n" % (e.code, e.read()))
         sys.exit(1)
     data = json.loads(response.read())
     if data["status"] == "error":
@@ -533,7 +533,7 @@ def cmd_list(args, env, config):
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        out("\nReceived an error [%d: %s]\n" % (e.code, e.read()))
         sys.exit(1)
     data = json.loads(response.read())
     
@@ -584,7 +584,7 @@ def cmd_manage(args, env, config):
     try:
         response = make_api_call(config, url, params, extra_handlers=handlers)
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
+        out("\nReceived an error [%d: %s]\n" % (e.code, e.read()))
         sys.exit(1)
     if not sys.stdin.isatty():
         out("\n")
