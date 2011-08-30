@@ -27,6 +27,7 @@ from gondor.progressbar import ProgressBar
 out = utils.out
 err = utils.err
 error = utils.error
+api_error = utils.api_error
 
 
 RE_VALID_USERNAME = re.compile('[\w.@+-]+$')
@@ -45,7 +46,7 @@ def config_value(config, section, key, default=None):
         return default
 
 
-def cmd_init(args, config):
+def cmd_init(args, env, config):
     site_key = args.site_key[0]
     if len(site_key) < 11:
         error("The site key given is too short.\n")
@@ -87,19 +88,23 @@ site_key = %(site_key)s
 vcs = %(vcs)s
 
 [app]
-; this path is relative to your project root (the directory .gondor is in)
-requirements_file = requirements/project.txt
+; This path is relative to your project root (the directory .gondor is in)
+requirements_file = requirements.txt
 
-; this is a Python module path; if the value is deploy.wsgi it would map to
-; deploy/wsgi.py on disk (relative to the directory manage.py lives in)
-wsgi_entry_point = deploy.wsgi
+; The wsgi entry point of your application in two parts separated by a colon.
+; wsgi:deploy where wsgi is the Python module which should be importable and
+; application which represents the callable in the module.
+wsgi_entry_point = wsgi:application
 
-; can be either nashvegas, south or none
+; Can be either nashvegas, south or none
 migrations = none
 
-; whether or not to run collectstatic (or build_static if collectstatic is not
-; available)
+; Whether or not to run collectstatic during deployment
 staticfiles = off
+
+; Path to map frontend servers to for your site media (includes both STATIC_URL
+; and MEDIA_URL; you must ensure they are under the same path)
+site_media_url = /site_media
 """ % {
     "site_key": site_key,
     "vcs": vcs
@@ -118,12 +123,7 @@ staticfiles = off
         out("Detecting existing .gondor/config. Not overriding.\n")
 
 
-def cmd_create(args, config):
-    gondor_dirname = ".gondor"
-    try:
-        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
-    except OSError:
-        error("unable to find a .gondor directory.\n")
+def cmd_create(args, env, config):
     
     label = args.label[0]
     
@@ -131,39 +131,19 @@ def cmd_create(args, config):
     if kind is None:
         kind = "dev"
     
-    try:
-        repo_root = utils.find_nearest(os.getcwd(), ".git")
-    except OSError:
-        try:
-            repo_root = utils.find_nearest(os.getcwd(), ".hg")
-        except OSError:
-            error("unable to find a supported version control directory. Looked for .git and .hg.\n")
-        else:
-            vcs = "hg"
-    else:
-        vcs = "git"
-    
-    out("Reading configuration... ")
-    local_config = ConfigParser.RawConfigParser()
-    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
-    site_key = local_config.get("gondor", "site_key")
-    out("[ok]\n")
-    
     text = "Creating instance on Gondor... "
-    url = "%s/create/" % endpoint
+    url = "%s/create/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
-        "site_key": site_key,
+        "site_key": config["gondor.site_key"],
         "label": label,
         "kind": kind,
-        "project_root": os.path.basename(project_root),
+        "project_root": os.path.basename(env["project_root"]),
     }
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
-        sys.exit(1)
+        api_error(e)
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -174,50 +154,20 @@ def cmd_create(args, config):
     out("\r%s[%s]   \n" % (text, message))
     if data["status"] == "success":
         
-        out("\nRun: gondor deploy %s %s" % (label, {"git": "HEAD", "hg": "tip"}[vcs]))
+        out("\nRun: gondor deploy %s %s" % (label, {"git": "HEAD", "hg": "tip"}[config["gondor.vcs"]]))
         out("\nVisit: %s\n" % data["url"])
     else:
         error("%s\n" % data["message"])
 
 
-def cmd_deploy(args, config):
+def cmd_deploy(args, env, config):
     label = args.label[0]
     commit = args.commit[0]
-    
-    gondor_dirname = ".gondor"
-    try:
-        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
-    except OSError:
-        error("unable to find a .gondor directory.\n")
     
     tar_path, tarball_path = None, None
     
     try:
-        out("Reading configuration... ")
-        local_config = ConfigParser.RawConfigParser()
-        local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-        endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
-        site_key = local_config.get("gondor", "site_key")
-        vcs = local_config.get("gondor", "vcs")
-        app_config = {
-            "requirements_file": config_value(local_config, "app", "requirements_file"),
-            "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
-            "migrations": config_value(local_config, "app", "migrations"),
-            "staticfiles": config_value(local_config, "app", "staticfiles"),
-            "site_media_url": config_value(local_config, "app", "site_media_url"),
-        }
-        include_files = [
-            x.strip()
-            for x in config_value(local_config, "files", "include", "").split("\n")
-            if x
-        ]
-        out("[ok]\n")
-        
-        if vcs == "git":
-            try:
-                repo_root = utils.find_nearest(os.getcwd(), ".git")
-            except OSError:
-                error("unable to find a .git directory.\n")
+        if config["gondor.vcs"] == "git":
             try:
                 git = utils.find_command("git")
             except utils.BadCommand, e:
@@ -227,13 +177,9 @@ def cmd_deploy(args, config):
                 error("could not map '%s' to a SHA\n" % commit)
             if commit == "HEAD":
                 commit = sha
-            tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
+            tar_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar" % (label, sha)))
             cmd = [git, "archive", "--format=tar", commit, "-o", tar_path]
-        elif vcs == "hg":
-            try:
-                repo_root = utils.find_nearest(os.getcwd(), ".hg")
-            except OSError:
-                error("unable to find a .hg directory.\n")
+        elif config["gondor.vcs"] == "hg":
             try:
                 hg = utils.find_command("hg")
             except utils.BadCommand, e:
@@ -249,28 +195,28 @@ def cmd_deploy(args, config):
                 sha = refs[commit]
             except KeyError:
                 error("could not map '%s' to a SHA\n" % commit)
-            tar_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar" % (label, sha)))
+            tar_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar" % (label, sha)))
             cmd = [hg, "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
         else:
-            error("'%s' is not a valid version control system for Gondor\n" % vcs)
+            error("'%s' is not a valid version control system for Gondor\n" % config["gondor.vcs"])
         
         out("Archiving code from %s... " % commit)
-        check, output = utils.run_proc(cmd, cwd=repo_root)
+        check, output = utils.run_proc(cmd, cwd=env["repo_root"])
         if check != 0:
             error(output)
         out("[ok]\n")
         
-        if include_files:
+        if config["files.include"]:
             out("Adding untracked files... ")
             try:
                 tar_fp = tarfile.open(tar_path, "a")
-                for f in include_files:
-                    tar_fp.add(os.path.abspath(os.path.join(repo_root, f)), arcname=f)
+                for f in config["files.include"]:
+                    tar_fp.add(os.path.abspath(os.path.join(env["repo_root"], f)), arcname=f)
             finally:
                 tar_fp.close()
             out("[ok]\n")
         
-        tarball_path = os.path.abspath(os.path.join(repo_root, "%s-%s.tar.gz" % (label, sha)))
+        tarball_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar.gz" % (label, sha)))
         
         out("Building tarball... ")
         with open(tar_path, "rb") as tar_fp:
@@ -283,18 +229,18 @@ def cmd_deploy(args, config):
         
         pb = ProgressBar(0, 100, 77)
         out("Pushing tarball to Gondor... \n")
-        url = "%s/deploy/" % endpoint
+        url = "%s/deploy/" % config["gondor.endpoint"]
         
         with open(tarball_path, "rb") as tarball:
             params = {
                 "version": __version__,
-                "site_key": site_key,
+                "site_key": config["gondor.site_key"],
                 "label": label,
                 "sha": sha,
                 "commit": commit,
                 "tarball": tarball,
-                "project_root": os.path.relpath(project_root, repo_root),
-                "app": json.dumps(app_config),
+                "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
+                "app": json.dumps(config["app"]),
             }
             handlers = [
                 http.MultipartPostHandler,
@@ -307,8 +253,7 @@ def cmd_deploy(args, config):
                 out("\nCanceling uploading... [ok]\n")
                 sys.exit(1)
             except urllib2.HTTPError, e:
-                out("\nReceived an error [%d: %s]" % (e.code, e.read()))
-                sys.exit(1)
+                api_error(e)
             else:
                 out("\n")
                 data = json.loads(response.read())
@@ -333,11 +278,11 @@ def cmd_deploy(args, config):
         while True:
             params = {
                 "version": __version__,
-                "site_key": site_key,
+                "site_key": config["gondor.site_key"],
                 "instance_label": label,
                 "task_id": deployment_id,
             }
-            url = "%s/task_status/" % endpoint
+            url = "%s/task_status/" % config["gondor.endpoint"]
             try:
                 response = make_api_call(config, url, urllib.urlencode(params))
             except urllib2.URLError:
@@ -365,31 +310,22 @@ def cmd_deploy(args, config):
                     time.sleep(2)
 
 
-def cmd_sqldump(args, config):
+def cmd_sqldump(args, env, config):
     label = args.label[0]
-    
-    gondor_dirname = ".gondor"
-    repo_root = utils.find_nearest(os.getcwd(), gondor_dirname)
-    
-    local_config = ConfigParser.RawConfigParser()
-    local_config.read(os.path.join(repo_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
-    site_key = local_config.get("gondor", "site_key")
     
     # request SQL dump and stream the response through uncompression
     
     err("Dumping database... ")
-    url = "%s/sqldump/" % endpoint
+    url = "%s/sqldump/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
-        "site_key": site_key,
+        "site_key": config["gondor.site_key"],
         "label": label,
     }
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
-        sys.exit(1)
+        api_error(e)
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -399,11 +335,11 @@ def cmd_sqldump(args, config):
         while True:
             params = {
                 "version": __version__,
-                "site_key": site_key,
+                "site_key": config["gondor.site_key"],
                 "instance_label": label,
                 "task_id": task_id,
             }
-            url = "%s/task_status/" % endpoint
+            url = "%s/task_status/" % config["gondor.endpoint"]
             try:
                 response = make_api_call(config, url, urllib.urlencode(params))
             except urllib2.URLError:
@@ -440,46 +376,12 @@ def cmd_sqldump(args, config):
         out(d.decompress(chunk))
 
 
-def cmd_run(args, config):
+def cmd_run(args, env, config):
     
     instance_label = args.instance_label[0]
     command = args.command_[0]
     cmdargs = args.cmdargs
     params = {"cmdargs": cmdargs}
-    
-    gondor_dirname = ".gondor"
-    try:
-        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
-    except OSError:
-        error("unable to find a .gondor directory.\n")
-    
-    out("Reading configuration... ")
-    local_config = ConfigParser.RawConfigParser()
-    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
-    site_key = local_config.get("gondor", "site_key")
-    vcs = local_config.get("gondor", "vcs")
-    app_config = {
-        "requirements_file": config_value(local_config, "app", "requirements_file"),
-        "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
-        "migrations": config_value(local_config, "app", "migrations"),
-        "staticfiles": config_value(local_config, "app", "staticfiles"),
-        "site_media_url": config_value(local_config, "app", "site_media_url"),
-    }
-    out("[ok]\n")
-    
-    if vcs == "git":
-        try:
-            repo_root = utils.find_nearest(os.getcwd(), ".git")
-        except OSError:
-            error("unable to find a .git directory.\n")
-    elif vcs == "hg":
-        try:
-            repo_root = utils.find_nearest(os.getcwd(), ".hg")
-        except OSError:
-            error("unable to find a .hg directory.\n")
-    else:
-        error("'%s' is not a valid version control system for Gondor\n" % vcs)
     
     if command == "createsuperuser":
         try:
@@ -525,21 +427,20 @@ def cmd_run(args, config):
         }
     
     out("Executing... ")
-    url = "%s/run/" % endpoint
+    url = "%s/run/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
-        "site_key": site_key,
+        "site_key": config["gondor.site_key"],
         "instance_label": instance_label,
-        "project_root": os.path.relpath(project_root, repo_root),
+        "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
         "command": command,
         "params": json.dumps(params),
-        "app": json.dumps(app_config),
+        "app": json.dumps(config["app"]),
     }
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
-        sys.exit(1)
+        api_error(e)
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -550,11 +451,11 @@ def cmd_run(args, config):
         while True:
             params = {
                 "version": __version__,
-                "site_key": site_key,
+                "site_key": config["gondor.site_key"],
                 "instance_label": instance_label,
                 "task_id": task_id,
             }
-            url = "%s/task_status/" % endpoint
+            url = "%s/task_status/" % config["gondor.endpoint"]
             response = make_api_call(config, url, urllib.urlencode(params))
             data = json.loads(response.read())
             if data["status"] == "error":
@@ -584,22 +485,9 @@ def cmd_run(args, config):
                     time.sleep(2)
 
 
-def cmd_delete(args, config):
+def cmd_delete(args, env, config):
     
     instance_label = args.label[0]
-    
-    gondor_dirname = ".gondor"
-    try:
-        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
-    except OSError:
-        error("unable to find a .gondor directory.\n")
-    
-    out("Reading configuration... ")
-    local_config = ConfigParser.RawConfigParser()
-    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
-    site_key = local_config.get("gondor", "site_key")
-    out("[ok]\n")
     
     text = "ARE YOU SURE YOU WANT TO DELETE THIS INSTANCE? [Y/N] "
     out(text)
@@ -609,17 +497,16 @@ def cmd_delete(args, config):
         sys.exit(0)
     text = "Deleting... "
     
-    url = "%s/delete/" % endpoint
+    url = "%s/delete/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
-        "site_key": site_key,
+        "site_key": config["gondor.site_key"],
         "instance_label": instance_label,
     }
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
-        sys.exit(1)
+        api_error(e)
     data = json.loads(response.read())
     if data["status"] == "error":
         message = "error"
@@ -632,31 +519,17 @@ def cmd_delete(args, config):
         error("%s\n" % data["message"])
 
 
-def cmd_list(args, config):
+def cmd_list(args, env, config):
     
-    gondor_dirname = ".gondor"
-    try:
-        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
-    except OSError:
-        error("unable to find a .gondor directory.\n")
-    
-    out("Reading configuration... ")
-    local_config = ConfigParser.RawConfigParser()
-    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
-    site_key = local_config.get("gondor", "site_key")
-    out("[ok]\n")
-    
-    url = "%s/list/" % endpoint
+    url = "%s/list/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
-        "site_key": site_key,
+        "site_key": config["gondor.site_key"],
     }
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
-        sys.exit(1)
+        api_error(e)
     data = json.loads(response.read())
     
     if data["status"] == "success":
@@ -676,29 +549,16 @@ def cmd_list(args, config):
         error("%s\n" % data["message"])
 
 
-def cmd_manage(args, config):
+def cmd_manage(args, env, config):
     
     instance_label = args.label[0]
     operation = args.operation[0]
     opargs = args.opargs
     
-    gondor_dirname = ".gondor"
-    try:
-        project_root = utils.find_nearest(os.getcwd(), gondor_dirname)
-    except OSError:
-        error("unable to find a .gondor directory.\n")
-    
-    out("Reading configuration... ")
-    local_config = ConfigParser.RawConfigParser()
-    local_config.read(os.path.join(project_root, gondor_dirname, "config"))
-    endpoint = config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT)
-    site_key = local_config.get("gondor", "site_key")
-    out("[ok]\n")
-    
-    url = "%s/manage/" % endpoint
+    url = "%s/manage/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
-        "site_key": site_key,
+        "site_key": config["gondor.site_key"],
         "instance_label": instance_label,
         "operation": operation,
     }
@@ -719,8 +579,7 @@ def cmd_manage(args, config):
     try:
         response = make_api_call(config, url, params, extra_handlers=handlers)
     except urllib2.HTTPError, e:
-        out("\nReceived an error [%d: %s]" % (e.code, e.read()))
-        sys.exit(1)
+        api_error(e)
     if not sys.stdin.isatty():
         out("\n")
     out("Running... ")
@@ -735,11 +594,11 @@ def cmd_manage(args, config):
             while True:
                 params = {
                     "version": __version__,
-                    "site_key": site_key,
+                    "site_key": config["gondor.site_key"],
                     "instance_label": instance_label,
                     "task_id": task_id,
                 }
-                url = "%s/task_status/" % endpoint
+                url = "%s/task_status/" % config["gondor.endpoint"]
                 response = make_api_call(config, url, urllib.urlencode(params))
                 data = json.loads(response.read())
                 if data["status"] == "error":
@@ -809,16 +668,65 @@ def main():
     
     args = parser.parse_args()
     
-    # config
+    # config / env
     
-    config = ConfigParser.RawConfigParser()
-    config.read(os.path.expanduser("~/.gondor"))
+    global_config = ConfigParser.RawConfigParser()
+    global_config.read(os.path.expanduser("~/.gondor"))
     config = {
-        "username": config_value(config, "auth", "username"),
-        "password": config_value(config, "auth", "password"),
+        "auth.username": config_value(global_config, "auth", "username"),
+        "auth.password": config_value(global_config, "auth", "password"),
+        "auth.key": config_value(global_config, "auth", "key"),
     }
-    if config["username"] is None or config["password"] is None:
-        error("you must set your credentials in ~/.gondor correctly\n")
+    env = {}
+    
+    if args.command != "init":
+        gondor_dirname = ".gondor"
+        try:
+            env["project_root"] = utils.find_nearest(os.getcwd(), gondor_dirname)
+        except OSError:
+            error("unable to find a .gondor directory.\n")
+        
+        out("Reading configuration... ")
+        local_config = ConfigParser.RawConfigParser()
+        local_config.read(os.path.join(env["project_root"], gondor_dirname, "config"))
+        out("[ok]\n")
+        
+        config.update({
+            "auth.username": config_value(local_config, "auth", "username", config["auth.username"]),
+            "auth.password": config_value(local_config, "auth", "password", config["auth.password"]),
+            "auth.key": config_value(local_config, "auth", "key", config["auth.key"]),
+            "gondor.site_key": local_config.get("gondor", "site_key"),
+            "gondor.endpoint": config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT),
+            "gondor.vcs": local_config.get("gondor", "vcs"),
+            "app": {
+                "requirements_file": config_value(local_config, "app", "requirements_file"),
+                "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
+                "migrations": config_value(local_config, "app", "migrations"),
+                "staticfiles": config_value(local_config, "app", "staticfiles"),
+                "site_media_url": config_value(local_config, "app", "site_media_url"),
+            },
+            "files.include": [
+                x.strip()
+                for x in config_value(local_config, "files", "include", "").split("\n")
+                if x
+            ]
+        })
+        
+        try:
+            vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]
+        except KeyError:
+            error("'%s' is not a valid version control system for Gondor\n" % config["gondor.vcs"])
+        try:
+            env["repo_root"] = utils.find_nearest(os.getcwd(), vcs_dir)
+        except OSError:
+            error("unable to find a %s directory.\n" % vcs_dir)
+    
+    if (config["auth.username"] is None and (config["auth.password"] is None or config["auth.key"] is None)):
+        message = "you must set your credentials in %s" % os.path.expanduser("~/.gondor")
+        if "project_root" in env:
+            message += " or %s" % os.path.join(env["project_root"], ".gondor", "config")
+        message += "\n"
+        error(message)
     
     {
         "init": cmd_init,
@@ -829,4 +737,4 @@ def main():
         "delete": cmd_delete,
         "list": cmd_list,
         "manage": cmd_manage,
-    }[args.command](args, config)
+    }[args.command](args, env, config)

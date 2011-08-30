@@ -2,6 +2,11 @@ import os
 import subprocess
 import sys
 
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
 
 def run_proc(cmd, **kwargs):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, **kwargs)
@@ -35,6 +40,22 @@ def error(msg, exit=True):
     err("ERROR: %s" % msg)
     if exit:
         sys.exit(1)
+
+
+def api_error(e):
+    data = e.read()
+    try:
+        data = json.loads(data)
+    except ValueError:
+        message = data
+    else:
+        message = data["message"]
+    if "\n" in message:
+        output = "\n\n%s" % message
+    else:
+        output = message
+    out("\nAPI returned an error [%d]: %s\n" % (e.code, message))
+    sys.exit(1)
 
 
 class BadCommand(Exception):
