@@ -2,6 +2,40 @@
 CHANGELOG
 =========
 
+1.0
+===
+
+ * no changes since post14
+
+1.0b1.post14
+============
+
+ * changed requirements_file and wsgi_entry_point defaults to be more understood
+ * added site_media_url default (has been supported for a while, but now added with init)
+ * reworked configuration; allowing auth to be defined locally or globally
+ * added support for API keys
+ * improved how API errors are displayed
+ * Gondor API now will force all users to use this version or newer
+
+1.0b1.post13
+============
+
+ * fixed gondor manage when a task is not returned
+ * removed use of a deprecated return value from API
+ * changed gondor run to work with new API method of returning command output
+ * Gondor API now will force all users to use this version or newer
+
+1.0b1.post12
+============
+
+ * fixed a bug introduced in the PATH lookup changes in post11
+
+1.0b1.post11
+============
+
+ * improved PATH lookups for git and hg (better Windows support)
+ * improved wsgi_entry_point comment in INI
+
 1.0b1.post10
 ============
 
