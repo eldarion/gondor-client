@@ -4,7 +4,7 @@ import urllib2
 from gondor import http
 
 
-def make_api_call(config, url, params, extra_handlers=None):
+def make_api_call(config, url, params=None, extra_handlers=None):
     handlers = [
         http.HTTPSHandler,
     ]

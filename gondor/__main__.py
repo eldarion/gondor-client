@@ -11,6 +11,7 @@ import tarfile
 import time
 import urllib
 import urllib2
+import webbrowser
 import zlib
 
 try:
@@ -621,6 +622,27 @@ def cmd_manage(args, env, config):
         else:
             out("[ok]\n")
 
+
+def cmd_open(args, env, config):
+    url = "%s/instance/detail/" % config["gondor.endpoint"]
+    params = {
+        "version": __version__,
+        "site_key": config["gondor.site_key"],
+        "label": args.label[0],
+    }
+    url += "?%s" % urllib.urlencode(params)
+    try:
+        response = make_api_call(config, url)
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    
+    if data["status"] == "success":
+        webbrowser.open(data["object"]["url"])
+    else:
+        error("%s\n" % data["message"])
+
+
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
@@ -665,6 +687,11 @@ def main():
     parser_manage.add_argument("label", nargs=1)
     parser_manage.add_argument("operation", nargs=1)
     parser_manage.add_argument("opargs", nargs="*")
+    
+    # cmd: open
+    # example: gondor open primary
+    parser_open = command_parsers.add_parser("open")
+    parser_open.add_argument("label", nargs=1)
     
     args = parser.parse_args()
     
@@ -737,4 +764,5 @@ def main():
         "delete": cmd_delete,
         "list": cmd_list,
         "manage": cmd_manage,
+        "open": cmd_open,
     }[args.command](args, env, config)
