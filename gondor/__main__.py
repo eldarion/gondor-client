@@ -133,7 +133,7 @@ def cmd_create(args, env, config):
         kind = "dev"
     
     text = "Creating instance on Gondor... "
-    url = "%s/create/" % config["gondor.endpoint"]
+    url = "%s/instance/create/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -230,7 +230,7 @@ def cmd_deploy(args, env, config):
         
         pb = ProgressBar(0, 100, 77)
         out("Pushing tarball to Gondor... \n")
-        url = "%s/deploy/" % config["gondor.endpoint"]
+        url = "%s/instance/deploy/" % config["gondor.endpoint"]
         
         with open(tarball_path, "rb") as tarball:
             params = {
@@ -283,7 +283,7 @@ def cmd_deploy(args, env, config):
                 "instance_label": label,
                 "task_id": deployment_id,
             }
-            url = "%s/task_status/" % config["gondor.endpoint"]
+            url = "%s/task/status/" % config["gondor.endpoint"]
             try:
                 response = make_api_call(config, url, urllib.urlencode(params))
             except urllib2.URLError:
@@ -317,7 +317,7 @@ def cmd_sqldump(args, env, config):
     # request SQL dump and stream the response through uncompression
     
     err("Dumping database... ")
-    url = "%s/sqldump/" % config["gondor.endpoint"]
+    url = "%s/instance/sqldump/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -340,7 +340,7 @@ def cmd_sqldump(args, env, config):
                 "instance_label": label,
                 "task_id": task_id,
             }
-            url = "%s/task_status/" % config["gondor.endpoint"]
+            url = "%s/task/status/" % config["gondor.endpoint"]
             try:
                 response = make_api_call(config, url, urllib.urlencode(params))
             except urllib2.URLError:
@@ -428,7 +428,7 @@ def cmd_run(args, env, config):
         }
     
     out("Executing... ")
-    url = "%s/run/" % config["gondor.endpoint"]
+    url = "%s/instance/run/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -456,7 +456,7 @@ def cmd_run(args, env, config):
                 "instance_label": instance_label,
                 "task_id": task_id,
             }
-            url = "%s/task_status/" % config["gondor.endpoint"]
+            url = "%s/task/status/" % config["gondor.endpoint"]
             response = make_api_call(config, url, urllib.urlencode(params))
             data = json.loads(response.read())
             if data["status"] == "error":
@@ -498,7 +498,7 @@ def cmd_delete(args, env, config):
         sys.exit(0)
     text = "Deleting... "
     
-    url = "%s/delete/" % config["gondor.endpoint"]
+    url = "%s/instance/delete/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -522,7 +522,7 @@ def cmd_delete(args, env, config):
 
 def cmd_list(args, env, config):
     
-    url = "%s/list/" % config["gondor.endpoint"]
+    url = "%s/site/instances/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -556,7 +556,7 @@ def cmd_manage(args, env, config):
     operation = args.operation[0]
     opargs = args.opargs
     
-    url = "%s/manage/" % config["gondor.endpoint"]
+    url = "%s/instance/manage/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -599,7 +599,7 @@ def cmd_manage(args, env, config):
                     "instance_label": instance_label,
                     "task_id": task_id,
                 }
-                url = "%s/task_status/" % config["gondor.endpoint"]
+                url = "%s/task/status/" % config["gondor.endpoint"]
                 response = make_api_call(config, url, urllib.urlencode(params))
                 data = json.loads(response.read())
                 if data["status"] == "error":
