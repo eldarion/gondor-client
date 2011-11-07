@@ -718,15 +718,19 @@ def main():
             error("unable to find a .gondor directory.\n")
         
         out("Reading configuration... ")
-        local_config = ConfigParser.RawConfigParser()
-        local_config.read(os.path.join(env["project_root"], gondor_dirname, "config"))
+        def parse_config(name):
+            local_config = ConfigParser.RawConfigParser()
+            local_config.read(os.path.join(env["project_root"], gondor_dirname, name))
+            return local_config
+        local_config = parse_config("config")
+
         out("[ok]\n")
         
         config.update({
             "auth.username": config_value(local_config, "auth", "username", config["auth.username"]),
             "auth.password": config_value(local_config, "auth", "password", config["auth.password"]),
             "auth.key": config_value(local_config, "auth", "key", config["auth.key"]),
-            "gondor.site_key": local_config.get("gondor", "site_key"),
+            "gondor.site_key": config_value(local_config, "gondor", "site_key", False),
             "gondor.endpoint": config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT),
             "gondor.vcs": local_config.get("gondor", "vcs"),
             "app": {
@@ -743,7 +747,18 @@ def main():
                 if x
             ]
         })
-        
+
+        if not config["gondor.site_key"]:
+            out("Loading separate site_key...")
+            try:
+                site_key_config = parse_config("site_key")
+                config["gondor.site_key"] = site_key_config.get("gondor", "site_key")
+            except ConfigParser.NoSectionError:
+                out("[failed]\n")
+                out("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n\n");
+                sys.exit(1)
+            out("[ok]\n")
+
         try:
             vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]
         except KeyError:
