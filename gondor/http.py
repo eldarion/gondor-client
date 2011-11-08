@@ -84,29 +84,25 @@ def match_hostname(cert, hostname):
             "subjectAltName fields were found")
 
 
-class HTTPSConnection(httplib.HTTPConnection):
+class HTTPSConnection(httplib.HTTPSConnection):
     """
     This class allows communication via SSL.
     Ported from Python 3.2. Does not follow Eldarion code-style.
     """
-    
-    default_port = 443
-    
-    def __init__(self, host, port=None, key_file=None, cert_file=None,
-                 strict=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
-        httplib.HTTPConnection.__init__(self, host, port, strict, timeout)
-        self.key_file = key_file
-        self.cert_file = cert_file
-    
     def connect(self):
         """
         Connect to a host on a given (SSL) port.
         """
         sock = socket.create_connection((self.host, self.port), self.timeout)
+        if self._tunnel_host:
+            self.sock = sock
+            self._tunnel()
+        
         self.sock = ssl.wrap_socket(
             sock, self.key_file, self.cert_file,
             ca_certs=GONDOR_IO_CRT, cert_reqs=ssl.CERT_REQUIRED
         )
+
         try:
             match_hostname(self.sock.getpeercert(), self.host)
         except Exception:

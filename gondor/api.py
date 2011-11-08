@@ -6,6 +6,7 @@ from gondor import http
 
 def make_api_call(config, url, params, extra_handlers=None):
     handlers = [
+        urllib2.ProxyHandler,
         http.HTTPSHandler,
     ]
     if extra_handlers is not None:
