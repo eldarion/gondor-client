@@ -106,6 +106,10 @@ staticfiles = off
 ; Path to map frontend servers to for your site media (includes both STATIC_URL
 ; and MEDIA_URL; you must ensure they are under the same path)
 site_media_url = /site_media
+
+; Gondor will use settings_module as DJANGO_SETTINGS_MODULE when it runs your
+; code. Commented out by default (means it will not be set).
+; settings_module = settings
 """ % {
     "site_key": site_key,
     "vcs": vcs
@@ -731,6 +735,7 @@ def main():
                 "migrations": config_value(local_config, "app", "migrations"),
                 "staticfiles": config_value(local_config, "app", "staticfiles"),
                 "site_media_url": config_value(local_config, "app", "site_media_url"),
+                "settings_module": config_value(local_config, "app", "settings_module"),
             },
             "files.include": [
                 x.strip()

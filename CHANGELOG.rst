@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.0.1
+=====
+
+ * added [app] settings_module to allow overriding of DJANGO_SETTINGS_MODULE
+
 1.0
 ===
 
