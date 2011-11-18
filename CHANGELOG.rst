@@ -2,6 +2,14 @@
 CHANGELOG
 =========
 
+1.0.1
+=====
+
+ * added gondor open to open an instance URL in your browser
+ * removed deprecated API endpoint URLs
+ * added [app] settings_module to allow overriding of DJANGO_SETTINGS_MODULE
+ * added ability to store site_key in .gondor/site_key file (thanks Travis Swicegood)
+
 1.0
 ===
 

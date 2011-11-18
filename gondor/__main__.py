@@ -11,6 +11,7 @@ import tarfile
 import time
 import urllib
 import urllib2
+import webbrowser
 import zlib
 
 try:
@@ -105,6 +106,10 @@ staticfiles = off
 ; Path to map frontend servers to for your site media (includes both STATIC_URL
 ; and MEDIA_URL; you must ensure they are under the same path)
 site_media_url = /site_media
+
+; Gondor will use settings_module as DJANGO_SETTINGS_MODULE when it runs your
+; code. Commented out by default (means it will not be set).
+; settings_module = settings
 """ % {
     "site_key": site_key,
     "vcs": vcs
@@ -132,7 +137,7 @@ def cmd_create(args, env, config):
         kind = "dev"
     
     text = "Creating instance on Gondor... "
-    url = "%s/create/" % config["gondor.endpoint"]
+    url = "%s/instance/create/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -229,7 +234,7 @@ def cmd_deploy(args, env, config):
         
         pb = ProgressBar(0, 100, 77)
         out("Pushing tarball to Gondor... \n")
-        url = "%s/deploy/" % config["gondor.endpoint"]
+        url = "%s/instance/deploy/" % config["gondor.endpoint"]
         
         with open(tarball_path, "rb") as tarball:
             params = {
@@ -282,7 +287,7 @@ def cmd_deploy(args, env, config):
                 "instance_label": label,
                 "task_id": deployment_id,
             }
-            url = "%s/task_status/" % config["gondor.endpoint"]
+            url = "%s/task/status/" % config["gondor.endpoint"]
             try:
                 response = make_api_call(config, url, urllib.urlencode(params))
             except urllib2.URLError:
@@ -316,7 +321,7 @@ def cmd_sqldump(args, env, config):
     # request SQL dump and stream the response through uncompression
     
     err("Dumping database... ")
-    url = "%s/sqldump/" % config["gondor.endpoint"]
+    url = "%s/instance/sqldump/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -339,7 +344,7 @@ def cmd_sqldump(args, env, config):
                 "instance_label": label,
                 "task_id": task_id,
             }
-            url = "%s/task_status/" % config["gondor.endpoint"]
+            url = "%s/task/status/" % config["gondor.endpoint"]
             try:
                 response = make_api_call(config, url, urllib.urlencode(params))
             except urllib2.URLError:
@@ -427,7 +432,7 @@ def cmd_run(args, env, config):
         }
     
     out("Executing... ")
-    url = "%s/run/" % config["gondor.endpoint"]
+    url = "%s/instance/run/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -455,7 +460,7 @@ def cmd_run(args, env, config):
                 "instance_label": instance_label,
                 "task_id": task_id,
             }
-            url = "%s/task_status/" % config["gondor.endpoint"]
+            url = "%s/task/status/" % config["gondor.endpoint"]
             response = make_api_call(config, url, urllib.urlencode(params))
             data = json.loads(response.read())
             if data["status"] == "error":
@@ -497,7 +502,7 @@ def cmd_delete(args, env, config):
         sys.exit(0)
     text = "Deleting... "
     
-    url = "%s/delete/" % config["gondor.endpoint"]
+    url = "%s/instance/delete/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -521,7 +526,7 @@ def cmd_delete(args, env, config):
 
 def cmd_list(args, env, config):
     
-    url = "%s/list/" % config["gondor.endpoint"]
+    url = "%s/site/instances/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -555,7 +560,7 @@ def cmd_manage(args, env, config):
     operation = args.operation[0]
     opargs = args.opargs
     
-    url = "%s/manage/" % config["gondor.endpoint"]
+    url = "%s/instance/manage/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -598,7 +603,7 @@ def cmd_manage(args, env, config):
                     "instance_label": instance_label,
                     "task_id": task_id,
                 }
-                url = "%s/task_status/" % config["gondor.endpoint"]
+                url = "%s/task/status/" % config["gondor.endpoint"]
                 response = make_api_call(config, url, urllib.urlencode(params))
                 data = json.loads(response.read())
                 if data["status"] == "error":
@@ -620,6 +625,27 @@ def cmd_manage(args, env, config):
                         time.sleep(2)
         else:
             out("[ok]\n")
+
+
+def cmd_open(args, env, config):
+    url = "%s/instance/detail/" % config["gondor.endpoint"]
+    params = {
+        "version": __version__,
+        "site_key": config["gondor.site_key"],
+        "label": args.label[0],
+    }
+    url += "?%s" % urllib.urlencode(params)
+    try:
+        response = make_api_call(config, url)
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    
+    if data["status"] == "success":
+        webbrowser.open(data["object"]["url"])
+    else:
+        error("%s\n" % data["message"])
+
 
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
@@ -666,6 +692,11 @@ def main():
     parser_manage.add_argument("operation", nargs=1)
     parser_manage.add_argument("opargs", nargs="*")
     
+    # cmd: open
+    # example: gondor open primary
+    parser_open = command_parsers.add_parser("open")
+    parser_open.add_argument("label", nargs=1)
+    
     args = parser.parse_args()
     
     # config / env
@@ -687,15 +718,19 @@ def main():
             error("unable to find a .gondor directory.\n")
         
         out("Reading configuration... ")
-        local_config = ConfigParser.RawConfigParser()
-        local_config.read(os.path.join(env["project_root"], gondor_dirname, "config"))
+        def parse_config(name):
+            local_config = ConfigParser.RawConfigParser()
+            local_config.read(os.path.join(env["project_root"], gondor_dirname, name))
+            return local_config
+        local_config = parse_config("config")
+
         out("[ok]\n")
         
         config.update({
             "auth.username": config_value(local_config, "auth", "username", config["auth.username"]),
             "auth.password": config_value(local_config, "auth", "password", config["auth.password"]),
             "auth.key": config_value(local_config, "auth", "key", config["auth.key"]),
-            "gondor.site_key": local_config.get("gondor", "site_key"),
+            "gondor.site_key": config_value(local_config, "gondor", "site_key", False),
             "gondor.endpoint": config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT),
             "gondor.vcs": local_config.get("gondor", "vcs"),
             "app": {
@@ -704,6 +739,7 @@ def main():
                 "migrations": config_value(local_config, "app", "migrations"),
                 "staticfiles": config_value(local_config, "app", "staticfiles"),
                 "site_media_url": config_value(local_config, "app", "site_media_url"),
+                "settings_module": config_value(local_config, "app", "settings_module"),
             },
             "files.include": [
                 x.strip()
@@ -711,7 +747,18 @@ def main():
                 if x
             ]
         })
-        
+
+        if not config["gondor.site_key"]:
+            out("Loading separate site_key...")
+            try:
+                site_key_config = parse_config("site_key")
+                config["gondor.site_key"] = site_key_config.get("gondor", "site_key")
+            except ConfigParser.NoSectionError:
+                out("[failed]\n")
+                out("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n\n");
+                sys.exit(1)
+            out("[ok]\n")
+
         try:
             vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]
         except KeyError:
@@ -737,4 +784,5 @@ def main():
         "delete": cmd_delete,
         "list": cmd_list,
         "manage": cmd_manage,
+        "open": cmd_open,
     }[args.command](args, env, config)
