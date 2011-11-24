@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.0.2 (dev)
+===========
+
+ * fixed sqldump to display stdout on stderr allowing it to be piped correctly
+
 1.0.1
 =====
 
