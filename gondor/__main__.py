@@ -723,7 +723,7 @@ def main():
             local_config.read(os.path.join(env["project_root"], gondor_dirname, name))
             return local_config
         local_config = parse_config("config")
-
+        
         out("[ok]\n")
         
         config.update({
@@ -747,7 +747,7 @@ def main():
                 if x
             ]
         })
-
+        
         if not config["gondor.site_key"]:
             out("Loading separate site_key...")
             try:
@@ -758,7 +758,7 @@ def main():
                 out("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n\n");
                 sys.exit(1)
             out("[ok]\n")
-
+        
         try:
             vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]
         except KeyError:
