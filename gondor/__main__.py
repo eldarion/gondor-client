@@ -710,6 +710,9 @@ def main():
     }
     env = {}
     
+    if args.command in ["sqldump"]:
+        out = err
+    
     if args.command != "init":
         gondor_dirname = ".gondor"
         try:
@@ -718,6 +721,7 @@ def main():
             error("unable to find a .gondor directory.\n")
         
         out("Reading configuration... ")
+        
         def parse_config(name):
             local_config = ConfigParser.RawConfigParser()
             local_config.read(os.path.join(env["project_root"], gondor_dirname, name))
