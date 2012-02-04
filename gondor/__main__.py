@@ -647,6 +647,67 @@ def cmd_open(args, env, config):
         error("%s\n" % data["message"])
 
 
+def cmd_env(args, env, config):
+    url = "%s/site/env/" % config["gondor.endpoint"]
+    bits = args.bits
+    params = [
+        ("version", __version__),
+        ("site_key", config["gondor.site_key"]),
+    ]
+    if args.scoped:
+        params.append(("scoped", "1"))
+    # default case is to get all vars on site
+    if bits:
+        # check if bits[0] is upper-case; if so we know it is not an instance
+        # label
+        if bits[0].isupper(): # get explicit var(s) on site
+            params.extend([("key", k) for k in bits])
+        else: # get var(s) on instance
+            params.append(("label", bits[0]))
+            params.extend([("key", k) for k in bits[1:]])
+    url += "?%s" % urllib.urlencode(params)
+    try:
+        response = make_api_call(config, url)
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    if data["status"] == "success":
+        if data["env"]:
+            for k, v in data["env"].iteritems():
+                out("%s=%s\n" % (k, v))
+    else:
+        error("%s\n" % data["message"])
+
+
+def cmd_env_set(args, env, config):
+    url = "%s/site/env/" % config["gondor.endpoint"]
+    bits = args.bits
+    params = [
+        ("version", __version__),
+        ("site_key", config["gondor.site_key"]),
+    ]
+    # api will reject the else case
+    if bits:
+        if "=" in bits[0]: # set var(s) on site
+            params.extend([("variable", v) for v in bits])
+        else: # set var(s) on instance
+            params.append(("label", bits[0]))
+            params.extend([("variable", v) for v in bits[1:]])
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    if data["status"] == "success":
+        for k, v in data["env"].iteritems():
+            if v is None:
+                out("removed %s\n" % k)
+            else:
+                out("%s=%s\n" % (k, v))
+    else:
+        error("%s\n" % data["message"])
+
+
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
@@ -696,6 +757,17 @@ def main():
     # example: gondor open primary
     parser_open = command_parsers.add_parser("open")
     parser_open.add_argument("label", nargs=1)
+    
+    # cmd: env
+    # example: gondor env / gondor env primary / gondor env KEY / gondor env primary KEY
+    parser_env = command_parsers.add_parser("env")
+    parser_env.add_argument("--scoped", action="store_true")
+    parser_env.add_argument("bits", nargs="*")
+    
+    # cmd: env:set
+    # example: gondor env:set KEY=value / gondor env primary KEY=value
+    parser_env_set = command_parsers.add_parser("env:set")
+    parser_env_set.add_argument("bits", nargs="*")
     
     args = parser.parse_args()
     
@@ -789,4 +861,6 @@ def main():
         "list": cmd_list,
         "manage": cmd_manage,
         "open": cmd_open,
+        "env": cmd_env,
+        "env:set": cmd_env_set,
     }[args.command](args, env, config)
