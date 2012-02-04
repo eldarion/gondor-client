@@ -701,6 +701,7 @@ def cmd_env_set(args, env, config):
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
+    parser.add_argument("--verbose", "-v", action="count", default=1)
     
     command_parsers = parser.add_subparsers(dest="command")
     
@@ -784,7 +785,8 @@ def main():
         except OSError:
             error("unable to find a .gondor directory.\n")
         
-        out("Reading configuration... ")
+        if args.verbose > 1:
+            out("Reading configuration... ")
         
         def parse_config(name):
             local_config = ConfigParser.RawConfigParser()
@@ -792,7 +794,8 @@ def main():
             return local_config
         local_config = parse_config("config")
         
-        out("[ok]\n")
+        if args.verbose > 1:
+            out("[ok]\n")
         
         config.update({
             "auth.username": config_value(local_config, "auth", "username", config["auth.username"]),
@@ -812,15 +815,17 @@ def main():
         })
         
         if not config["gondor.site_key"]:
-            out("Loading separate site_key... ")
+            if args.verbose > 1:
+                out("Loading separate site_key... ")
             try:
                 site_key_config = parse_config("site_key")
                 config["gondor.site_key"] = site_key_config.get("gondor", "site_key")
             except ConfigParser.NoSectionError:
-                out("[failed]\n")
-                out("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n\n");
-                sys.exit(1)
-            out("[ok]\n")
+                if args.verbose > 1:
+                    out("[failed]\n")
+                error("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n");
+            if args.verbose > 1:
+                out("[ok]\n")
         
         try:
             vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]

@@ -8,6 +8,8 @@ CHANGELOG
  * fixed sqldump to display stdout on stderr allowing it to be piped correctly
  * added gondor env and env:set to view and set instance environment variables
  * removed undocumented files.include functionality in favor of gondor env
+ * added -v/--verbose for increasing verbosity level
+ * default verbosity level makes "Reading from configuration... [ok]" hidden by default
 
 1.0.1
 =====
