@@ -211,16 +211,6 @@ def cmd_deploy(args, env, config):
             error(output)
         out("[ok]\n")
         
-        if config["files.include"]:
-            out("Adding untracked files... ")
-            try:
-                tar_fp = tarfile.open(tar_path, "a")
-                for f in config["files.include"]:
-                    tar_fp.add(os.path.abspath(os.path.join(env["repo_root"], f)), arcname=f)
-            finally:
-                tar_fp.close()
-            out("[ok]\n")
-        
         tarball_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar.gz" % (label, sha)))
         
         out("Building tarball... ")
@@ -818,12 +808,7 @@ def main():
                 "staticfiles": config_value(local_config, "app", "staticfiles"),
                 "site_media_url": config_value(local_config, "app", "site_media_url"),
                 "settings_module": config_value(local_config, "app", "settings_module"),
-            },
-            "files.include": [
-                x.strip()
-                for x in config_value(local_config, "files", "include", "").split("\n")
-                if x
-            ]
+            }
         })
         
         if not config["gondor.site_key"]:
