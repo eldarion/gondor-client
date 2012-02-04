@@ -827,7 +827,7 @@ def main():
         })
         
         if not config["gondor.site_key"]:
-            out("Loading separate site_key...")
+            out("Loading separate site_key... ")
             try:
                 site_key_config = parse_config("site_key")
                 config["gondor.site_key"] = site_key_config.get("gondor", "site_key")
