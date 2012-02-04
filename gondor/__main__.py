@@ -784,6 +784,8 @@ def main():
     
     if args.command in ["sqldump"]:
         out = err
+    else:
+        out = globals()["out"]
     
     if args.command != "init":
         gondor_dirname = ".gondor"
