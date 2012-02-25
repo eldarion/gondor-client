@@ -461,7 +461,7 @@ def cmd_run(args, env, config):
                 out("\nError: %s\n" % data["message"])
             if data["status"] == "success":
                 if data["state"] == "finished":
-                    out("[ok]\n\n")
+                    out("[ok]\n")
                     d = zlib.decompressobj(16+zlib.MAX_WBITS)
                     cs = 16 * 1024
                     response = urllib2.urlopen(data["result"]["public_url"])
@@ -531,7 +531,6 @@ def cmd_list(args, env, config):
     data = json.loads(response.read())
     
     if data["status"] == "success":
-        out("\n")
         instances = sorted(data["instances"], key=lambda v: v["label"])
         if instances:
             for instance in instances:
