@@ -10,6 +10,7 @@ CHANGELOG
  * removed undocumented files.include functionality in favor of gondor env
  * added -v/--verbose for increasing verbosity level
  * default verbosity level makes "Reading from configuration... [ok]" hidden by default
+ * added [app] compressor which enables running compress (from django_compressor) during deployment
 
 1.0.1
 =====
