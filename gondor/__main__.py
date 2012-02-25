@@ -103,6 +103,9 @@ migrations = none
 ; Whether or not to run collectstatic during deployment
 staticfiles = off
 
+; Whether or not to run compress (from django_compressor) during deployment
+compressor = off
+
 ; Path to map frontend servers to for your site media (includes both STATIC_URL
 ; and MEDIA_URL; you must ensure they are under the same path)
 site_media_url = /site_media
@@ -809,6 +812,7 @@ def main():
                 "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
                 "migrations": config_value(local_config, "app", "migrations"),
                 "staticfiles": config_value(local_config, "app", "staticfiles"),
+                "compressor": config_value(local_config, "app", "compressor"),
                 "site_media_url": config_value(local_config, "app", "site_media_url"),
                 "settings_module": config_value(local_config, "app", "settings_module"),
             }
