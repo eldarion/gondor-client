@@ -161,7 +161,6 @@ def cmd_create(args, env, config):
         message = "unknown"
     out("\r%s[%s]   \n" % (text, message))
     if data["status"] == "success":
-        
         out("\nRun: gondor deploy %s %s" % (label, {"git": "HEAD", "hg": "tip"}[config["gondor.vcs"]]))
         out("\nVisit: %s\n" % data["url"])
     else:
