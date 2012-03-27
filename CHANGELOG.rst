@@ -11,6 +11,7 @@ CHANGELOG
  * added -v/--verbose for increasing verbosity level
  * default verbosity level makes "Reading from configuration... [ok]" hidden by default
  * added [app] compressor which enables running compress (from django_compressor) during deployment
+ * removed checks on project layout (fixes Django 1.4 support) and paves way for more flexible layouts
 
 1.0.1
 =====

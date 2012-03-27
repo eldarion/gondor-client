@@ -52,14 +52,6 @@ def cmd_init(args, env, config):
     if len(site_key) < 11:
         error("The site key given is too short.\n")
     
-    # ensure os.getcwd() is a Django directory
-    files = [
-        os.path.join(os.getcwd(), "__init__.py"),
-        os.path.join(os.getcwd(), "manage.py")
-    ]
-    if not all([os.path.exists(f) for f in files]):
-        error("must run gondor init from a Django project directory.\n")
-    
     gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
     
     try:
@@ -75,13 +67,6 @@ def cmd_init(args, env, config):
         vcs = "git"
     
     if not os.path.exists(gondor_dir):
-        if repo_root == os.getcwd():
-            out("WARNING: we've detected your repo root (directory containing .%s) is the same\n" % vcs)
-            out("directory as your project root. This is certainly allowed, but many of our\n")
-            out("users have problems with this setup because the parent directory is *not* the\n")
-            out("same on Gondor as it is locally. See https://gondor.io/support/project-layout/\n")
-            out("for more information on the suggested layout.\n\n")
-        
         os.mkdir(gondor_dir)
         
         config_file = """[gondor]
