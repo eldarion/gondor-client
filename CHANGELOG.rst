@@ -2,6 +2,17 @@
 CHANGELOG
 =========
 
+1.0.2 (dev)
+===========
+
+ * fixed sqldump to display stdout on stderr allowing it to be piped correctly
+ * added gondor env and env:set to view and set instance environment variables
+ * removed undocumented files.include functionality in favor of gondor env
+ * added -v/--verbose for increasing verbosity level
+ * default verbosity level makes "Reading from configuration... [ok]" hidden by default
+ * added [app] compressor which enables running compress (from django_compressor) during deployment
+ * removed checks on project layout (fixes Django 1.4 support) and paves way for more flexible layouts
+
 1.0.1
 =====
 

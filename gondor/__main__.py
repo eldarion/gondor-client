@@ -52,14 +52,6 @@ def cmd_init(args, env, config):
     if len(site_key) < 11:
         error("The site key given is too short.\n")
     
-    # ensure os.getcwd() is a Django directory
-    files = [
-        os.path.join(os.getcwd(), "__init__.py"),
-        os.path.join(os.getcwd(), "manage.py")
-    ]
-    if not all([os.path.exists(f) for f in files]):
-        error("must run gondor init from a Django project directory.\n")
-    
     gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
     
     try:
@@ -75,13 +67,6 @@ def cmd_init(args, env, config):
         vcs = "git"
     
     if not os.path.exists(gondor_dir):
-        if repo_root == os.getcwd():
-            out("WARNING: we've detected your repo root (directory containing .%s) is the same\n" % vcs)
-            out("directory as your project root. This is certainly allowed, but many of our\n")
-            out("users have problems with this setup because the parent directory is *not* the\n")
-            out("same on Gondor as it is locally. See https://gondor.io/support/project-layout/\n")
-            out("for more information on the suggested layout.\n\n")
-        
         os.mkdir(gondor_dir)
         
         config_file = """[gondor]
@@ -102,6 +87,9 @@ migrations = none
 
 ; Whether or not to run collectstatic during deployment
 staticfiles = off
+
+; Whether or not to run compress (from django_compressor) during deployment
+compressor = off
 
 ; Path to map frontend servers to for your site media (includes both STATIC_URL
 ; and MEDIA_URL; you must ensure they are under the same path)
@@ -158,7 +146,6 @@ def cmd_create(args, env, config):
         message = "unknown"
     out("\r%s[%s]   \n" % (text, message))
     if data["status"] == "success":
-        
         out("\nRun: gondor deploy %s %s" % (label, {"git": "HEAD", "hg": "tip"}[config["gondor.vcs"]]))
         out("\nVisit: %s\n" % data["url"])
     else:
@@ -210,16 +197,6 @@ def cmd_deploy(args, env, config):
         if check != 0:
             error(output)
         out("[ok]\n")
-        
-        if config["files.include"]:
-            out("Adding untracked files... ")
-            try:
-                tar_fp = tarfile.open(tar_path, "a")
-                for f in config["files.include"]:
-                    tar_fp.add(os.path.abspath(os.path.join(env["repo_root"], f)), arcname=f)
-            finally:
-                tar_fp.close()
-            out("[ok]\n")
         
         tarball_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar.gz" % (label, sha)))
         
@@ -468,7 +445,7 @@ def cmd_run(args, env, config):
                 out("\nError: %s\n" % data["message"])
             if data["status"] == "success":
                 if data["state"] == "finished":
-                    out("[ok]\n\n")
+                    out("[ok]\n")
                     d = zlib.decompressobj(16+zlib.MAX_WBITS)
                     cs = 16 * 1024
                     response = urllib2.urlopen(data["result"]["public_url"])
@@ -538,7 +515,6 @@ def cmd_list(args, env, config):
     data = json.loads(response.read())
     
     if data["status"] == "success":
-        out("\n")
         instances = sorted(data["instances"], key=lambda v: v["label"])
         if instances:
             for instance in instances:
@@ -647,9 +623,71 @@ def cmd_open(args, env, config):
         error("%s\n" % data["message"])
 
 
+def cmd_env(args, env, config):
+    url = "%s/site/env/" % config["gondor.endpoint"]
+    bits = args.bits
+    params = [
+        ("version", __version__),
+        ("site_key", config["gondor.site_key"]),
+    ]
+    if args.scoped:
+        params.append(("scoped", "1"))
+    # default case is to get all vars on site
+    if bits:
+        # check if bits[0] is upper-case; if so we know it is not an instance
+        # label
+        if bits[0].isupper(): # get explicit var(s) on site
+            params.extend([("key", k) for k in bits])
+        else: # get var(s) on instance
+            params.append(("label", bits[0]))
+            params.extend([("key", k) for k in bits[1:]])
+    url += "?%s" % urllib.urlencode(params)
+    try:
+        response = make_api_call(config, url)
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    if data["status"] == "success":
+        if data["env"]:
+            for k, v in data["env"].iteritems():
+                out("%s=%s\n" % (k, v))
+    else:
+        error("%s\n" % data["message"])
+
+
+def cmd_env_set(args, env, config):
+    url = "%s/site/env/" % config["gondor.endpoint"]
+    bits = args.bits
+    params = [
+        ("version", __version__),
+        ("site_key", config["gondor.site_key"]),
+    ]
+    # api will reject the else case
+    if bits:
+        if "=" in bits[0]: # set var(s) on site
+            params.extend([("variable", v) for v in bits])
+        else: # set var(s) on instance
+            params.append(("label", bits[0]))
+            params.extend([("variable", v) for v in bits[1:]])
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    if data["status"] == "success":
+        for k, v in data["env"].iteritems():
+            if v is None:
+                out("removed %s\n" % k)
+            else:
+                out("%s=%s\n" % (k, v))
+    else:
+        error("%s\n" % data["message"])
+
+
 def main():
     parser = argparse.ArgumentParser(prog="gondor")
     parser.add_argument("--version", action="version", version="%%(prog)s %s" % __version__)
+    parser.add_argument("--verbose", "-v", action="count", default=1)
     
     command_parsers = parser.add_subparsers(dest="command")
     
@@ -697,6 +735,17 @@ def main():
     parser_open = command_parsers.add_parser("open")
     parser_open.add_argument("label", nargs=1)
     
+    # cmd: env
+    # example: gondor env / gondor env primary / gondor env KEY / gondor env primary KEY
+    parser_env = command_parsers.add_parser("env")
+    parser_env.add_argument("--scoped", action="store_true")
+    parser_env.add_argument("bits", nargs="*")
+    
+    # cmd: env:set
+    # example: gondor env:set KEY=value / gondor env primary KEY=value
+    parser_env_set = command_parsers.add_parser("env:set")
+    parser_env_set.add_argument("bits", nargs="*")
+    
     args = parser.parse_args()
     
     # config / env
@@ -710,6 +759,11 @@ def main():
     }
     env = {}
     
+    if args.command in ["sqldump"]:
+        out = err
+    else:
+        out = globals()["out"]
+    
     if args.command != "init":
         gondor_dirname = ".gondor"
         try:
@@ -717,14 +771,17 @@ def main():
         except OSError:
             error("unable to find a .gondor directory.\n")
         
-        out("Reading configuration... ")
+        if args.verbose > 1:
+            out("Reading configuration... ")
+        
         def parse_config(name):
             local_config = ConfigParser.RawConfigParser()
             local_config.read(os.path.join(env["project_root"], gondor_dirname, name))
             return local_config
         local_config = parse_config("config")
-
-        out("[ok]\n")
+        
+        if args.verbose > 1:
+            out("[ok]\n")
         
         config.update({
             "auth.username": config_value(local_config, "auth", "username", config["auth.username"]),
@@ -738,27 +795,25 @@ def main():
                 "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
                 "migrations": config_value(local_config, "app", "migrations"),
                 "staticfiles": config_value(local_config, "app", "staticfiles"),
+                "compressor": config_value(local_config, "app", "compressor"),
                 "site_media_url": config_value(local_config, "app", "site_media_url"),
                 "settings_module": config_value(local_config, "app", "settings_module"),
-            },
-            "files.include": [
-                x.strip()
-                for x in config_value(local_config, "files", "include", "").split("\n")
-                if x
-            ]
+            }
         })
-
+        
         if not config["gondor.site_key"]:
-            out("Loading separate site_key...")
+            if args.verbose > 1:
+                out("Loading separate site_key... ")
             try:
                 site_key_config = parse_config("site_key")
                 config["gondor.site_key"] = site_key_config.get("gondor", "site_key")
             except ConfigParser.NoSectionError:
-                out("[failed]\n")
-                out("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n\n");
-                sys.exit(1)
-            out("[ok]\n")
-
+                if args.verbose > 1:
+                    out("[failed]\n")
+                error("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n");
+            if args.verbose > 1:
+                out("[ok]\n")
+        
         try:
             vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]
         except KeyError:
@@ -785,4 +840,6 @@ def main():
         "list": cmd_list,
         "manage": cmd_manage,
         "open": cmd_open,
+        "env": cmd_env,
+        "env:set": cmd_env_set,
     }[args.command](args, env, config)
