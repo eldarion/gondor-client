@@ -2,8 +2,8 @@
 CHANGELOG
 =========
 
-1.0.2 (dev)
-===========
+1.0.2
+=====
 
  * fixed sqldump to display stdout on stderr allowing it to be piped correctly
  * added gondor env and env:set to view and set instance environment variables
