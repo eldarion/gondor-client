@@ -6,6 +6,10 @@ CHANGELOG
 =========
 
  * added --reload to deploy to send HUP to WSGI server
+ * added --no-on-deploy, --no-migration, --no-static and --no-compressor to
+   deploy preventing migrations, staticfiles and compressor to run on
+   deployment. [this is a temporary development feature only; we have plans
+   for a more generic approach to this coming soon]
 
 1.0.2
 =====

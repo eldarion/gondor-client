@@ -214,6 +214,17 @@ def cmd_deploy(args, env, config):
         url = "%s/instance/deploy/" % config["gondor.endpoint"]
         
         with open(tarball_path, "rb") as tarball:
+            no_on_deploy = []
+            if args.no_on_deploy:
+                # excludes all labels
+                no_on_deploy.extend(["migration", "static", "compressor"])
+            else:
+                if args.no_migration:
+                    no_on_deploy.append("migration")
+                if args.no_static:
+                    no_on_deploy.append("static")
+                if args.no_compressor:
+                    no_on_deploy.append("compressor")
             params = {
                 "version": __version__,
                 "site_key": config["gondor.site_key"],
@@ -223,6 +234,7 @@ def cmd_deploy(args, env, config):
                 "tarball": tarball,
                 "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
                 "reload": {True: "true", False: "false"}[args.reload],
+                "no_on_deploy": ",".join(no_on_deploy),
                 "app": json.dumps(config["app"]),
             }
             handlers = [
@@ -704,6 +716,13 @@ def main():
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
     parser_deploy.add_argument("--reload", action="store_false")
+    # @@@ to do --no-* arguments we will need to have parsed the config and
+    # work out the labels defined (per-instance would make this even harder;
+    # possibly partial parsing)
+    parser_deploy.add_argument("--no-on-deploy", action="store_true")
+    parser_deploy.add_argument("--no-migration", action="store_true")
+    parser_deploy.add_argument("--no-static", action="store_true")
+    parser_deploy.add_argument("--no-compressor", action="store_true")
     parser_deploy.add_argument("label", nargs=1)
     parser_deploy.add_argument("commit", nargs=1)
     
