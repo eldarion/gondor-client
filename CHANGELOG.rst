@@ -5,7 +5,8 @@ CHANGELOG
 1.1 (dev)
 =========
 
- * added --reload to deploy to send HUP to WSGI server
+ * added --spin to deploy enabling incoming HTTP requests to be held for
+   five seconds before being sent to the instance
  * added --no-on-deploy, --no-migration, --no-static and --no-compressor to
    deploy preventing migrations, staticfiles and compressor to run on
    deployment. [this is a temporary development feature only; we have plans

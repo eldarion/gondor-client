@@ -233,7 +233,7 @@ def cmd_deploy(args, env, config):
                 "commit": commit,
                 "tarball": tarball,
                 "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
-                "reload": {True: "true", False: "false"}[args.reload],
+                "spin": {True: "true", False: "false"}[args.spin],
                 "no_on_deploy": ",".join(no_on_deploy),
                 "app": json.dumps(config["app"]),
             }
@@ -715,7 +715,7 @@ def main():
     
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
-    parser_deploy.add_argument("--reload", action="store_true")
+    parser_deploy.add_argument("--spin", action="store_true")
     # @@@ to do --no-* arguments we will need to have parsed the config and
     # work out the labels defined (per-instance would make this even harder;
     # possibly partial parsing)
