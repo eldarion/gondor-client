@@ -222,6 +222,7 @@ def cmd_deploy(args, env, config):
                 "commit": commit,
                 "tarball": tarball,
                 "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
+                "reload": {True: "true", False: "false"}[args.reload],
                 "app": json.dumps(config["app"]),
             }
             handlers = [
@@ -702,6 +703,7 @@ def main():
     
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
+    parser_deploy.add_argument("--reload", action="store_false")
     parser_deploy.add_argument("label", nargs=1)
     parser_deploy.add_argument("commit", nargs=1)
     

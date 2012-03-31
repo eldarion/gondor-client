@@ -5,6 +5,8 @@ CHANGELOG
 1.1 (dev)
 =========
 
+ * added --reload to deploy to send HUP to WSGI server
+
 1.0.2
 =====
 
