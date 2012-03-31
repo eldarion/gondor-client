@@ -715,7 +715,7 @@ def main():
     
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
-    parser_deploy.add_argument("--reload", action="store_false")
+    parser_deploy.add_argument("--reload", action="store_true")
     # @@@ to do --no-* arguments we will need to have parsed the config and
     # work out the labels defined (per-instance would make this even harder;
     # possibly partial parsing)
