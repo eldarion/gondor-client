@@ -2,6 +2,14 @@
 CHANGELOG
 =========
 
+1.0.3
+=====
+
+ * added [app] managepy for customization the location of manage.py
+ * added [app] local_settings when set to on will tell Gondor to not write a
+   local_settings.py file; this is not fully supported on Gondor yet (full
+   announcement coming soon)
+
 1.0.2
 =====
 
