@@ -95,6 +95,10 @@ compressor = off
 ; and MEDIA_URL; you must ensure they are under the same path)
 site_media_url = /site_media
 
+; The location of your manage.py. Gondor uses this as an entry point for
+; management commands. This is relative to the directory .gondor lives in.
+; managepy = manage.py
+
 ; Gondor will use settings_module as DJANGO_SETTINGS_MODULE when it runs your
 ; code. Commented out by default (means it will not be set).
 ; settings_module = settings
@@ -819,6 +823,8 @@ def main():
                 "compressor": config_value(local_config, "app", "compressor"),
                 "site_media_url": config_value(local_config, "app", "site_media_url"),
                 "settings_module": config_value(local_config, "app", "settings_module"),
+                "managepy": config_value(local_config, "app", "managepy"),
+                "local_settings": config_value(local_config, "app", "local_settings"),
             }
         })
         
