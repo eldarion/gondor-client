@@ -385,18 +385,19 @@ def cmd_run(args, env, config):
     instance_label = args.instance_label[0]
     command = args.command_
     
-    # look for rlwrap and if found use it!
-    try:
-        rlwrap = utils.find_command("rlwrap")
-    except utils.BadCommand:
-        pass
-    else:
-        if "RLWRAP_WRAPPED" not in os.environ:
-            if args.verbose > 1:
-                out("Detected rlwrap; respawning with rlwrap\n")
-            os.environ["RLWRAP_WRAPPED"] = "1" # allow us to detect the wrapping on execl
-            args = [rlwrap, os.environ["_"], "run", instance_label] + command
-            os.execl(rlwrap, *args)
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        # look for rlwrap and if found use it!
+        try:
+            rlwrap = utils.find_command("rlwrap")
+        except utils.BadCommand:
+            pass
+        else:
+            if "RLWRAP_WRAPPED" not in os.environ:
+                if args.verbose > 1:
+                    out("Detected rlwrap; respawning with rlwrap\n")
+                os.environ["RLWRAP_WRAPPED"] = "1" # allow us to detect the wrapping on execl
+                args = [rlwrap, os.environ["_"], "run", instance_label] + command
+                os.execl(rlwrap, *args)
     
     out("Attaching... ")
     url = "%s/instance/run/" % config["gondor.endpoint"]
