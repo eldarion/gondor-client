@@ -411,6 +411,7 @@ def cmd_run(args, env, config):
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
+        out("[failed]\n")
         api_error(e)
     data = json.loads(response.read())
     endpoint = tuple(data["endpoint"])
