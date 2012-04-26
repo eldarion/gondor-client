@@ -1,9 +1,14 @@
 import argparse
 import ConfigParser
+import errno
 import getpass
 import gzip
 import os
 import re
+import readline
+import select
+import socket
+import ssl
 import stat
 import subprocess
 import sys
@@ -378,62 +383,29 @@ def cmd_sqldump(args, env, config):
 def cmd_run(args, env, config):
     
     instance_label = args.instance_label[0]
-    command = args.command_[0]
-    cmdargs = args.cmdargs
-    params = {"cmdargs": cmdargs}
+    command = args.command_
     
-    if command == "createsuperuser":
-        try:
-            # Get a username
-            while 1:
-                username = raw_input("Username: ")
-                if not RE_VALID_USERNAME.match(username):
-                    sys.stderr.write("Error: That username is invalid. Use only letters, digits and underscores.\n")
-                    username = None
-                    continue
-                break
-            
-            # Get an email
-            while 1:
-                email = raw_input("Email address: ")
-                if not EMAIL_RE.search(email):
-                    sys.stderr.write("Error: That email address is invalid.\n")
-                    email = None
-                else:
-                    break
-            
-            # Get a password
-            while 1:
-                password = getpass.getpass()
-                password2 = getpass.getpass("Password (again): ")
-                if password != password2:
-                    sys.stderr.write("Error: Your passwords didn't match.\n")
-                    password = None
-                    continue
-                if password.strip() == "":
-                    sys.stderr.write("Error: Blank passwords aren't allowed.\n")
-                    password = None
-                    continue
-                break
-        except KeyboardInterrupt:
-            sys.stderr.write("\nOperation cancelled.\n")
-            sys.exit(1)
-        
-        params = {
-            "username": username,
-            "email": email,
-            "password": password,
-        }
+    # look for rlwrap and if found use it!
+    try:
+        rlwrap = utils.find_command("rlwrap")
+    except utils.BadCommand:
+        pass
+    else:
+        if "RLWRAP_WRAPPED" not in os.environ:
+            if args.verbose > 1:
+                out("Detected rlwrap; respawning with rlwrap\n")
+            os.environ["RLWRAP_WRAPPED"] = "1" # allow us to detect the wrapping on execl
+            args = [rlwrap, os.environ["_"], "run", instance_label] + command
+            os.execl(rlwrap, *args)
     
-    out("Executing... ")
+    out("Attaching... ")
     url = "%s/instance/run/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
         "instance_label": instance_label,
         "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
-        "command": command,
-        "params": json.dumps(params),
+        "command": " ".join(command),
         "app": json.dumps(config["app"]),
     }
     try:
@@ -441,6 +413,7 @@ def cmd_run(args, env, config):
     except urllib2.HTTPError, e:
         api_error(e)
     data = json.loads(response.read())
+    endpoint = tuple(data["endpoint"])
     
     if data["status"] == "error":
         out("[error]\n")
@@ -462,19 +435,11 @@ def cmd_run(args, env, config):
                 out("\nError: %s\n" % data["message"])
             if data["status"] == "success":
                 if data["state"] == "finished":
-                    out("[ok]\n")
-                    d = zlib.decompressobj(16+zlib.MAX_WBITS)
-                    cs = 16 * 1024
-                    response = urllib2.urlopen(data["result"]["public_url"])
-                    while True:
-                        chunk = response.read(cs)
-                        if not chunk:
-                            break
-                        out(d.decompress(chunk))
+                    # task finished; move on
                     break
                 elif data["state"] == "failed":
                     out("[failed]\n")
-                    out("\n%s\n" % data["reason"])
+                    out("Error: %s\n" % data["reason"])
                     sys.exit(1)
                 elif data["state"] == "locked":
                     out("[locked]\n")
@@ -482,6 +447,56 @@ def cmd_run(args, env, config):
                     sys.exit(1)
                 else:
                     time.sleep(2)
+        # connect to process
+        for x in xrange(5):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            ssl_kwargs = {
+                "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
+                "cert_reqs": ssl.CERT_REQUIRED,
+                "ssl_version": ssl.PROTOCOL_SSLv3
+            }
+            sock = ssl.wrap_socket(sock, **ssl_kwargs)
+            try:
+                sock.connect(endpoint)
+            except IOError, e:
+                continue
+            else:
+                out("[ok]\n")
+                break
+        else:
+            out("[failed]\n")
+            out("Error: unable to attach to process (reason: %s)\n" % e)
+            sys.exit(1)
+        try:
+            while True:
+                try:
+                    rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
+                except select.error, e:
+                    if e.args[0] == errno.EINTR:
+                        continue
+                    raise
+                if sock in rr:
+                    data = sock.recv((1024 * 1024))
+                    if not data:
+                        break
+                    payload = json.loads(data)
+                    if payload["action"] == "read":
+                        data = payload["data"]
+                        while data:
+                            n = os.write(sys.stdout.fileno(), data)
+                            data = data[n:]
+                    elif payload["action"] == "timeout":
+                        sys.stderr.write("\ntimed out\n")
+                        break
+                if sys.stdin in rr:
+                    data = os.read(sys.stdin.fileno(), (1024 * 1024))
+                    data = json.dumps({"action": "write", "data": data})
+                    while data:
+                        n = sock.send(data)
+                        data = data[n:]
+        except KeyboardInterrupt:
+            sock.sendall(json.dumps({"action": "interrupt"}))
+            sys.stderr.write("\n")
 
 
 def cmd_delete(args, env, config):
@@ -737,8 +752,7 @@ def main():
     # cmd: run
     parser_run = command_parsers.add_parser("run")
     parser_run.add_argument("instance_label", nargs=1)
-    parser_run.add_argument("command_", nargs=1)
-    parser_run.add_argument("cmdargs", nargs="*")
+    parser_run.add_argument("command_", nargs="+")
     
     # cmd: delete
     parser_delete = command_parsers.add_parser("delete")

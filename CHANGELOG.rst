@@ -11,6 +11,7 @@ CHANGELOG
    deploy preventing migrations, staticfiles and compressor to run on
    deployment. [this is a temporary development feature only; we have plans
    for a more generic approach to this coming soon]
+ * improved run to use the new interactive process on Gondor
 
 1.0.3
 =====
