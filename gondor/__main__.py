@@ -399,7 +399,7 @@ def cmd_run(args, env, config):
                 args = [rlwrap, os.environ["_"], "run", instance_label] + command
                 os.execl(rlwrap, *args)
     
-    out("Attaching... ")
+    err("Attaching... ")
     url = "%s/instance/run/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
@@ -412,13 +412,13 @@ def cmd_run(args, env, config):
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
-        out("[failed]\n")
+        err("[failed]\n")
         api_error(e)
     data = json.loads(response.read())
     endpoint = tuple(data["endpoint"])
     
     if data["status"] == "error":
-        out("[error]\n")
+        err("[error]\n")
         error("%s\n" % data["message"])
     if data["status"] == "success":
         task_id = data["task"]
@@ -433,19 +433,18 @@ def cmd_run(args, env, config):
             response = make_api_call(config, url, urllib.urlencode(params))
             data = json.loads(response.read())
             if data["status"] == "error":
-                out("[error]\n")
-                out("\nError: %s\n" % data["message"])
+                err("[error]\n")
+                err("\nError: %s\n" % data["message"])
             if data["status"] == "success":
                 if data["state"] == "finished":
                     # task finished; move on
                     break
                 elif data["state"] == "failed":
-                    out("[failed]\n")
-                    out("Error: %s\n" % data["reason"])
-                    sys.exit(1)
+                    err("[failed]\n")
+                    error("%s\n" % data["reason"])
                 elif data["state"] == "locked":
-                    out("[locked]\n")
-                    out("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
+                    err("[locked]\n")
+                    err("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
                     sys.exit(1)
                 else:
                     time.sleep(2)
@@ -463,12 +462,11 @@ def cmd_run(args, env, config):
             except IOError, e:
                 continue
             else:
-                out("[ok]\n")
+                err("[ok]\n")
                 break
         else:
-            out("[failed]\n")
-            out("Error: unable to attach to process (reason: %s)\n" % e)
-            sys.exit(1)
+            err("[failed]\n")
+            error("unable to attach to process (reason: %s)\n" % e)
         try:
             while True:
                 try:
@@ -488,7 +486,7 @@ def cmd_run(args, env, config):
                             n = os.write(sys.stdout.fileno(), data)
                             data = data[n:]
                     elif payload["action"] == "timeout":
-                        sys.stderr.write("\ntimed out\n")
+                        err("\ntimed out\n")
                         break
                 if sys.stdin in rr:
                     data = os.read(sys.stdin.fileno(), (1024 * 1024))
@@ -498,7 +496,7 @@ def cmd_run(args, env, config):
                         data = data[n:]
         except KeyboardInterrupt:
             sock.sendall(json.dumps({"action": "interrupt"}))
-            sys.stderr.write("\n")
+            err("\n")
 
 
 def cmd_delete(args, env, config):
@@ -886,3 +884,4 @@ def main():
         "env": cmd_env,
         "env:set": cmd_env_set,
     }[args.command](args, env, config)
+    return 0
