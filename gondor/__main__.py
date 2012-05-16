@@ -8,6 +8,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 import urllib
 import urllib2
@@ -540,6 +541,12 @@ def cmd_manage(args, env, config):
     operation = args.operation[0]
     opargs = args.opargs
     
+    if operation == "database:load" and not args.yes:
+        out("This command will destroy all data in the database for %s\n" % instance_label)
+        answer = raw_input("Are you sure you want to continue? [y/n]: ")
+        if answer != "y":
+            sys.exit(1)
+    
     url = "%s/instance/manage/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
@@ -550,14 +557,29 @@ def cmd_manage(args, env, config):
     handlers = [
         http.MultipartPostHandler,
     ]
-    if not sys.stdin.isatty():
-        params["stdin"] = sys.stdin
+    if operation in ["database:load"] and opargs:
+        try:
+            fp = open(opargs[0], "rb")
+        except IOError:
+            error("unable to open %s\n" % opargs[0])
+        out("Compressing file... ")
+        fd, tmp = tempfile.mkstemp()
+        with gzip.open(tmp, "wb") as fpc:
+            while True:
+                chunk = fp.read(8192)
+                if not chunk:
+                    break
+                fpc.write(chunk)
+        out("[ok]\n")
+        params["stdin"] = open(tmp, "rb")
         pb = ProgressBar(0, 100, 77)
-        out("Pushing stdin to Gondor... \n")
+        out("Pushing file to Gondor... \n")
         handlers.extend([
             http.UploadProgressHandler(pb, ssl=True),
             http.UploadProgressHandler(pb, ssl=False)
         ])
+    else:
+        error("%s takes one argument.\n" % operation)
     params = params.items()
     for oparg in opargs:
         params.append(("arg", oparg))
@@ -565,9 +587,7 @@ def cmd_manage(args, env, config):
         response = make_api_call(config, url, params, extra_handlers=handlers)
     except urllib2.HTTPError, e:
         api_error(e)
-    if not sys.stdin.isatty():
-        out("\n")
-    out("Running... ")
+    out("\nRunning... ")
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -732,6 +752,10 @@ def main():
     parser_manage = command_parsers.add_parser("manage")
     parser_manage.add_argument("label", nargs=1)
     parser_manage.add_argument("operation", nargs=1)
+    parser_manage.add_argument("--yes",
+        action="store_true",
+        help="automatically answer yes to prompts"
+    )
     parser_manage.add_argument("opargs", nargs="*")
     
     # cmd: open

@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.0.4
+=====
+
+ * stablized database:load allowing SQL dumps to be uploaded
+
 1.0.3
 =====
 
