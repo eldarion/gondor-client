@@ -647,6 +647,29 @@ def cmd_open(args, env, config):
         error("%s\n" % data["message"])
 
 
+def cmd_dashboard(args, env, config):
+    params = {
+        "version": __version__,
+        "site_key": config["gondor.site_key"],
+    }
+    if args.label:
+        url = "%s/instance/detail/" % config["gondor.endpoint"]
+        params["label"] = args.label
+    else:
+        url = "%s/site/detail/" % config["gondor.endpoint"]
+    url += "?%s" % urllib.urlencode(params)
+    try:
+        response = make_api_call(config, url)
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    
+    if data["status"] == "success":
+        webbrowser.open(data["object"]["dashboard_url"])
+    else:
+        error("%s\n" % data["message"])
+
+
 def cmd_env(args, env, config):
     url = "%s/site/env/" % config["gondor.endpoint"]
     bits = args.bits
@@ -763,6 +786,11 @@ def main():
     parser_open = command_parsers.add_parser("open")
     parser_open.add_argument("label", nargs=1)
     
+    # cmd: dashboard
+    # example: gondor dashboard primary
+    parser_dashboard = command_parsers.add_parser("dashboard")
+    parser_dashboard.add_argument("label", nargs="?")
+    
     # cmd: env
     # example: gondor env / gondor env primary / gondor env KEY / gondor env primary KEY
     parser_env = command_parsers.add_parser("env")
@@ -870,6 +898,7 @@ def main():
         "list": cmd_list,
         "manage": cmd_manage,
         "open": cmd_open,
+        "dashboard": cmd_dashboard,
         "env": cmd_env,
         "env:set": cmd_env_set,
     }[args.command](args, env, config)

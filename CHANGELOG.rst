@@ -6,6 +6,7 @@ CHANGELOG
 =====
 
  * stablized database:load allowing SQL dumps to be uploaded
+ * added gondor dashboard [instance] enabling quick opening of dashboard for site or instance
 
 1.0.3
 =====
