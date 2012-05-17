@@ -172,7 +172,7 @@ class MultipartPostHandler(urllib2.BaseHandler):
                 if isinstance(data, dict):
                     data = data.iteritems()
                 for key, value in data:
-                    if isinstance(value, file):
+                    if hasattr(value, "read"):
                         files.append((key, value))
                     else:
                         params.append((key, value))

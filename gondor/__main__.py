@@ -8,6 +8,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 import urllib
 import urllib2
@@ -540,6 +541,12 @@ def cmd_manage(args, env, config):
     operation = args.operation[0]
     opargs = args.opargs
     
+    if operation == "database:load" and not args.yes:
+        out("This command will destroy all data in the database for %s\n" % instance_label)
+        answer = raw_input("Are you sure you want to continue? [y/n]: ")
+        if answer != "y":
+            sys.exit(1)
+    
     url = "%s/instance/manage/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
@@ -550,14 +557,31 @@ def cmd_manage(args, env, config):
     handlers = [
         http.MultipartPostHandler,
     ]
-    if not sys.stdin.isatty():
-        params["stdin"] = sys.stdin
-        pb = ProgressBar(0, 100, 77)
-        out("Pushing stdin to Gondor... \n")
-        handlers.extend([
-            http.UploadProgressHandler(pb, ssl=True),
-            http.UploadProgressHandler(pb, ssl=False)
-        ])
+    if operation in ["database:load"]:
+        if opargs:
+            filename = os.path.abspath(os.path.expanduser(opargs[0]))
+            try:
+                fp = open(filename, "rb")
+            except IOError:
+                error("unable to open %s\n" % filename)
+            out("Compressing file... ")
+            fd, tmp = tempfile.mkstemp()
+            with gzip.open(tmp, "wb") as fpc:
+                while True:
+                    chunk = fp.read(8192)
+                    if not chunk:
+                        break
+                    fpc.write(chunk)
+            out("[ok]\n")
+            params["stdin"] = open(tmp, "rb")
+            pb = ProgressBar(0, 100, 77)
+            out("Pushing file to Gondor... \n")
+            handlers.extend([
+                http.UploadProgressHandler(pb, ssl=True),
+                http.UploadProgressHandler(pb, ssl=False)
+            ])
+        else:
+            error("%s takes one argument.\n" % operation)
     params = params.items()
     for oparg in opargs:
         params.append(("arg", oparg))
@@ -565,9 +589,7 @@ def cmd_manage(args, env, config):
         response = make_api_call(config, url, params, extra_handlers=handlers)
     except urllib2.HTTPError, e:
         api_error(e)
-    if not sys.stdin.isatty():
-        out("\n")
-    out("Running... ")
+    out("\nRunning... ")
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -623,6 +645,29 @@ def cmd_open(args, env, config):
     
     if data["status"] == "success":
         webbrowser.open(data["object"]["url"])
+    else:
+        error("%s\n" % data["message"])
+
+
+def cmd_dashboard(args, env, config):
+    params = {
+        "version": __version__,
+        "site_key": config["gondor.site_key"],
+    }
+    if args.label:
+        url = "%s/instance/detail/" % config["gondor.endpoint"]
+        params["label"] = args.label
+    else:
+        url = "%s/site/detail/" % config["gondor.endpoint"]
+    url += "?%s" % urllib.urlencode(params)
+    try:
+        response = make_api_call(config, url)
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    
+    if data["status"] == "success":
+        webbrowser.open(data["object"]["dashboard_url"])
     else:
         error("%s\n" % data["message"])
 
@@ -732,12 +777,21 @@ def main():
     parser_manage = command_parsers.add_parser("manage")
     parser_manage.add_argument("label", nargs=1)
     parser_manage.add_argument("operation", nargs=1)
+    parser_manage.add_argument("--yes",
+        action="store_true",
+        help="automatically answer yes to prompts"
+    )
     parser_manage.add_argument("opargs", nargs="*")
     
     # cmd: open
     # example: gondor open primary
     parser_open = command_parsers.add_parser("open")
     parser_open.add_argument("label", nargs=1)
+    
+    # cmd: dashboard
+    # example: gondor dashboard primary
+    parser_dashboard = command_parsers.add_parser("dashboard")
+    parser_dashboard.add_argument("label", nargs="?")
     
     # cmd: env
     # example: gondor env / gondor env primary / gondor env KEY / gondor env primary KEY
@@ -846,6 +900,7 @@ def main():
         "list": cmd_list,
         "manage": cmd_manage,
         "open": cmd_open,
+        "dashboard": cmd_dashboard,
         "env": cmd_env,
         "env:set": cmd_env_set,
     }[args.command](args, env, config)
