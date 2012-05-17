@@ -13,6 +13,22 @@ CHANGELOG
    for a more generic approach to this coming soon]
  * improved run to use the new interactive process on Gondor
 
+1.0.X
+=====
+
+ * improved path handling of file argument to database:load
+
+1.0.5
+=====
+
+ * fixed bug introduced in 1.0.4 with manage commands other than database:load
+
+1.0.4
+=====
+
+ * stablized database:load allowing SQL dumps to be uploaded
+ * added gondor dashboard [instance] enabling quick opening of dashboard for site or instance
+
 1.0.3
 =====
 
