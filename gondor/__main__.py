@@ -557,29 +557,30 @@ def cmd_manage(args, env, config):
     handlers = [
         http.MultipartPostHandler,
     ]
-    if operation in ["database:load"] and opargs:
-        try:
-            fp = open(opargs[0], "rb")
-        except IOError:
-            error("unable to open %s\n" % opargs[0])
-        out("Compressing file... ")
-        fd, tmp = tempfile.mkstemp()
-        with gzip.open(tmp, "wb") as fpc:
-            while True:
-                chunk = fp.read(8192)
-                if not chunk:
-                    break
-                fpc.write(chunk)
-        out("[ok]\n")
-        params["stdin"] = open(tmp, "rb")
-        pb = ProgressBar(0, 100, 77)
-        out("Pushing file to Gondor... \n")
-        handlers.extend([
-            http.UploadProgressHandler(pb, ssl=True),
-            http.UploadProgressHandler(pb, ssl=False)
-        ])
-    else:
-        error("%s takes one argument.\n" % operation)
+    if operation in ["database:load"]:
+        if opargs:
+            try:
+                fp = open(opargs[0], "rb")
+            except IOError:
+                error("unable to open %s\n" % opargs[0])
+            out("Compressing file... ")
+            fd, tmp = tempfile.mkstemp()
+            with gzip.open(tmp, "wb") as fpc:
+                while True:
+                    chunk = fp.read(8192)
+                    if not chunk:
+                        break
+                    fpc.write(chunk)
+            out("[ok]\n")
+            params["stdin"] = open(tmp, "rb")
+            pb = ProgressBar(0, 100, 77)
+            out("Pushing file to Gondor... \n")
+            handlers.extend([
+                http.UploadProgressHandler(pb, ssl=True),
+                http.UploadProgressHandler(pb, ssl=False)
+            ])
+        else:
+            error("%s takes one argument.\n" % operation)
     params = params.items()
     for oparg in opargs:
         params.append(("arg", oparg))

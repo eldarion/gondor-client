@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.0.5
+=====
+
+ * fixed bug introduced in 1.0.4 with manage commands other than database:load
+
 1.0.4
 =====
 
