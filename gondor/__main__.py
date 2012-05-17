@@ -1,13 +1,19 @@
 import argparse
 import ConfigParser
+import errno
 import getpass
 import gzip
 import os
 import re
+import readline
+import select
+import socket
+import ssl
 import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 import urllib
 import urllib2
@@ -52,14 +58,6 @@ def cmd_init(args, env, config):
     if len(site_key) < 11:
         error("The site key given is too short.\n")
     
-    # ensure os.getcwd() is a Django directory
-    files = [
-        os.path.join(os.getcwd(), "__init__.py"),
-        os.path.join(os.getcwd(), "manage.py")
-    ]
-    if not all([os.path.exists(f) for f in files]):
-        error("must run gondor init from a Django project directory.\n")
-    
     gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
     
     try:
@@ -75,13 +73,6 @@ def cmd_init(args, env, config):
         vcs = "git"
     
     if not os.path.exists(gondor_dir):
-        if repo_root == os.getcwd():
-            out("WARNING: we've detected your repo root (directory containing .%s) is the same\n" % vcs)
-            out("directory as your project root. This is certainly allowed, but many of our\n")
-            out("users have problems with this setup because the parent directory is *not* the\n")
-            out("same on Gondor as it is locally. See https://gondor.io/support/project-layout/\n")
-            out("for more information on the suggested layout.\n\n")
-        
         os.mkdir(gondor_dir)
         
         config_file = """[gondor]
@@ -109,6 +100,10 @@ compressor = off
 ; Path to map frontend servers to for your site media (includes both STATIC_URL
 ; and MEDIA_URL; you must ensure they are under the same path)
 site_media_url = /site_media
+
+; The location of your manage.py. Gondor uses this as an entry point for
+; management commands. This is relative to the directory .gondor lives in.
+; managepy = manage.py
 
 ; Gondor will use settings_module as DJANGO_SETTINGS_MODULE when it runs your
 ; code. Commented out by default (means it will not be set).
@@ -237,6 +232,8 @@ def cmd_deploy(args, env, config):
                 "commit": commit,
                 "tarball": tarball,
                 "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
+                "spin": {True: "true", False: "false"}[args.spin],
+                "run_on_deploy": {True: "true", False: "false"}[not args.no_on_deploy],
                 "app": json.dumps(config["app"]),
             }
             handlers = [
@@ -376,72 +373,42 @@ def cmd_sqldump(args, env, config):
 def cmd_run(args, env, config):
     
     instance_label = args.instance_label[0]
-    command = args.command_[0]
-    cmdargs = args.cmdargs
-    params = {"cmdargs": cmdargs}
+    command = args.command_
     
-    if command == "createsuperuser":
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        # look for rlwrap and if found use it!
         try:
-            # Get a username
-            while 1:
-                username = raw_input("Username: ")
-                if not RE_VALID_USERNAME.match(username):
-                    sys.stderr.write("Error: That username is invalid. Use only letters, digits and underscores.\n")
-                    username = None
-                    continue
-                break
-            
-            # Get an email
-            while 1:
-                email = raw_input("Email address: ")
-                if not EMAIL_RE.search(email):
-                    sys.stderr.write("Error: That email address is invalid.\n")
-                    email = None
-                else:
-                    break
-            
-            # Get a password
-            while 1:
-                password = getpass.getpass()
-                password2 = getpass.getpass("Password (again): ")
-                if password != password2:
-                    sys.stderr.write("Error: Your passwords didn't match.\n")
-                    password = None
-                    continue
-                if password.strip() == "":
-                    sys.stderr.write("Error: Blank passwords aren't allowed.\n")
-                    password = None
-                    continue
-                break
-        except KeyboardInterrupt:
-            sys.stderr.write("\nOperation cancelled.\n")
-            sys.exit(1)
-        
-        params = {
-            "username": username,
-            "email": email,
-            "password": password,
-        }
+            rlwrap = utils.find_command("rlwrap")
+        except utils.BadCommand:
+            pass
+        else:
+            if "RLWRAP_WRAPPED" not in os.environ:
+                if args.verbose > 1:
+                    out("Detected rlwrap; respawning with rlwrap\n")
+                os.environ["RLWRAP_WRAPPED"] = "1" # allow us to detect the wrapping on execl
+                args = [rlwrap, os.environ["_"], "run", instance_label] + command
+                os.execl(rlwrap, *args)
     
-    out("Executing... ")
+    err("Attaching... ")
     url = "%s/instance/run/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
         "instance_label": instance_label,
         "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
-        "command": command,
-        "params": json.dumps(params),
+        "command": " ".join(command),
         "app": json.dumps(config["app"]),
     }
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
+        err("[failed]\n")
         api_error(e)
     data = json.loads(response.read())
+    endpoint = tuple(data["endpoint"])
     
     if data["status"] == "error":
-        out("[error]\n")
+        err("[error]\n")
         error("%s\n" % data["message"])
     if data["status"] == "success":
         task_id = data["task"]
@@ -456,30 +423,70 @@ def cmd_run(args, env, config):
             response = make_api_call(config, url, urllib.urlencode(params))
             data = json.loads(response.read())
             if data["status"] == "error":
-                out("[error]\n")
-                out("\nError: %s\n" % data["message"])
+                err("[error]\n")
+                err("\nError: %s\n" % data["message"])
             if data["status"] == "success":
                 if data["state"] == "finished":
-                    out("[ok]\n")
-                    d = zlib.decompressobj(16+zlib.MAX_WBITS)
-                    cs = 16 * 1024
-                    response = urllib2.urlopen(data["result"]["public_url"])
-                    while True:
-                        chunk = response.read(cs)
-                        if not chunk:
-                            break
-                        out(d.decompress(chunk))
+                    # task finished; move on
                     break
                 elif data["state"] == "failed":
-                    out("[failed]\n")
-                    out("\n%s\n" % data["reason"])
-                    sys.exit(1)
+                    err("[failed]\n")
+                    error("%s\n" % data["reason"])
                 elif data["state"] == "locked":
-                    out("[locked]\n")
-                    out("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
+                    err("[locked]\n")
+                    err("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
                     sys.exit(1)
                 else:
                     time.sleep(2)
+        # connect to process
+        for x in xrange(5):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            ssl_kwargs = {
+                "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
+                "cert_reqs": ssl.CERT_REQUIRED,
+                "ssl_version": ssl.PROTOCOL_SSLv3
+            }
+            sock = ssl.wrap_socket(sock, **ssl_kwargs)
+            try:
+                sock.connect(endpoint)
+            except IOError, e:
+                continue
+            else:
+                err("[ok]\n")
+                break
+        else:
+            err("[failed]\n")
+            error("unable to attach to process (reason: %s)\n" % e)
+        try:
+            while True:
+                try:
+                    rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
+                except select.error, e:
+                    if e.args[0] == errno.EINTR:
+                        continue
+                    raise
+                if sock in rr:
+                    data = sock.recv((1024 * 1024))
+                    if not data:
+                        break
+                    payload = json.loads(data)
+                    if payload["action"] == "read":
+                        data = payload["data"]
+                        while data:
+                            n = os.write(sys.stdout.fileno(), data)
+                            data = data[n:]
+                    elif payload["action"] == "timeout":
+                        err("\ntimed out\n")
+                        break
+                if sys.stdin in rr:
+                    data = os.read(sys.stdin.fileno(), (1024 * 1024))
+                    data = json.dumps({"action": "write", "data": data})
+                    while data:
+                        n = sock.send(data)
+                        data = data[n:]
+        except KeyboardInterrupt:
+            sock.sendall(json.dumps({"action": "interrupt"}))
+            err("\n")
 
 
 def cmd_delete(args, env, config):
@@ -551,6 +558,12 @@ def cmd_manage(args, env, config):
     operation = args.operation[0]
     opargs = args.opargs
     
+    if operation == "database:load" and not args.yes:
+        out("This command will destroy all data in the database for %s\n" % instance_label)
+        answer = raw_input("Are you sure you want to continue? [y/n]: ")
+        if answer != "y":
+            sys.exit(1)
+    
     url = "%s/instance/manage/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
@@ -561,14 +574,31 @@ def cmd_manage(args, env, config):
     handlers = [
         http.MultipartPostHandler,
     ]
-    if not sys.stdin.isatty():
-        params["stdin"] = sys.stdin
-        pb = ProgressBar(0, 100, 77)
-        out("Pushing stdin to Gondor... \n")
-        handlers.extend([
-            http.UploadProgressHandler(pb, ssl=True),
-            http.UploadProgressHandler(pb, ssl=False)
-        ])
+    if operation in ["database:load"]:
+        if opargs:
+            filename = os.path.abspath(os.path.expanduser(opargs[0]))
+            try:
+                fp = open(filename, "rb")
+            except IOError:
+                error("unable to open %s\n" % filename)
+            out("Compressing file... ")
+            fd, tmp = tempfile.mkstemp()
+            with gzip.open(tmp, "wb") as fpc:
+                while True:
+                    chunk = fp.read(8192)
+                    if not chunk:
+                        break
+                    fpc.write(chunk)
+            out("[ok]\n")
+            params["stdin"] = open(tmp, "rb")
+            pb = ProgressBar(0, 100, 77)
+            out("Pushing file to Gondor... \n")
+            handlers.extend([
+                http.UploadProgressHandler(pb, ssl=True),
+                http.UploadProgressHandler(pb, ssl=False)
+            ])
+        else:
+            error("%s takes one argument.\n" % operation)
     params = params.items()
     for oparg in opargs:
         params.append(("arg", oparg))
@@ -576,9 +606,7 @@ def cmd_manage(args, env, config):
         response = make_api_call(config, url, params, extra_handlers=handlers)
     except urllib2.HTTPError, e:
         api_error(e)
-    if not sys.stdin.isatty():
-        out("\n")
-    out("Running... ")
+    out("\nRunning... ")
     data = json.loads(response.read())
     
     if data["status"] == "error":
@@ -634,6 +662,29 @@ def cmd_open(args, env, config):
     
     if data["status"] == "success":
         webbrowser.open(data["object"]["url"])
+    else:
+        error("%s\n" % data["message"])
+
+
+def cmd_dashboard(args, env, config):
+    params = {
+        "version": __version__,
+        "site_key": config["gondor.site_key"],
+    }
+    if args.label:
+        url = "%s/instance/detail/" % config["gondor.endpoint"]
+        params["label"] = args.label
+    else:
+        url = "%s/site/detail/" % config["gondor.endpoint"]
+    url += "?%s" % urllib.urlencode(params)
+    try:
+        response = make_api_call(config, url)
+    except urllib2.HTTPError, e:
+        api_error(e)
+    data = json.loads(response.read())
+    
+    if data["status"] == "success":
+        webbrowser.open(data["object"]["dashboard_url"])
     else:
         error("%s\n" % data["message"])
 
@@ -717,6 +768,8 @@ def main():
     
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
+    parser_deploy.add_argument("--spin", action="store_true")
+    parser_deploy.add_argument("--no-on-deploy", action="store_true")
     parser_deploy.add_argument("label", nargs=1)
     parser_deploy.add_argument("commit", nargs=1)
     
@@ -727,8 +780,7 @@ def main():
     # cmd: run
     parser_run = command_parsers.add_parser("run")
     parser_run.add_argument("instance_label", nargs=1)
-    parser_run.add_argument("command_", nargs=1)
-    parser_run.add_argument("cmdargs", nargs="*")
+    parser_run.add_argument("command_", nargs="+")
     
     # cmd: delete
     parser_delete = command_parsers.add_parser("delete")
@@ -743,12 +795,21 @@ def main():
     parser_manage = command_parsers.add_parser("manage")
     parser_manage.add_argument("label", nargs=1)
     parser_manage.add_argument("operation", nargs=1)
+    parser_manage.add_argument("--yes",
+        action="store_true",
+        help="automatically answer yes to prompts"
+    )
     parser_manage.add_argument("opargs", nargs="*")
     
     # cmd: open
     # example: gondor open primary
     parser_open = command_parsers.add_parser("open")
     parser_open.add_argument("label", nargs=1)
+    
+    # cmd: dashboard
+    # example: gondor dashboard primary
+    parser_dashboard = command_parsers.add_parser("dashboard")
+    parser_dashboard.add_argument("label", nargs="?")
     
     # cmd: env
     # example: gondor env / gondor env primary / gondor env KEY / gondor env primary KEY
@@ -813,6 +874,8 @@ def main():
                 "compressor": config_value(local_config, "app", "compressor"),
                 "site_media_url": config_value(local_config, "app", "site_media_url"),
                 "settings_module": config_value(local_config, "app", "settings_module"),
+                "managepy": config_value(local_config, "app", "managepy"),
+                "local_settings": config_value(local_config, "app", "local_settings"),
             }
         })
         
@@ -855,6 +918,8 @@ def main():
         "list": cmd_list,
         "manage": cmd_manage,
         "open": cmd_open,
+        "dashboard": cmd_dashboard,
         "env": cmd_env,
         "env:set": cmd_env_set,
     }[args.command](args, env, config)
+    return 0

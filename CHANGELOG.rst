@@ -2,8 +2,41 @@
 CHANGELOG
 =========
 
-1.0.2 (dev)
-===========
+1.1 (dev)
+=========
+
+ * added --spin to deploy enabling incoming HTTP requests to be held for
+   five seconds before being sent to the instance
+ * added --no-on-deploy to deploy command which will prevent running of
+   on_deploy commands
+ * improved run to use the new interactive process on Gondor
+
+1.0.6 (in progress)
+===================
+
+ * improved path handling of file argument to database:load
+
+1.0.5
+=====
+
+ * fixed bug introduced in 1.0.4 with manage commands other than database:load
+
+1.0.4
+=====
+
+ * stablized database:load allowing SQL dumps to be uploaded
+ * added gondor dashboard [instance] enabling quick opening of dashboard for site or instance
+
+1.0.3
+=====
+
+ * added [app] managepy for customization the location of manage.py
+ * added [app] local_settings when set to on will tell Gondor to not write a
+   local_settings.py file; this is not fully supported on Gondor yet (full
+   announcement coming soon)
+
+1.0.2
+=====
 
  * fixed sqldump to display stdout on stderr allowing it to be piped correctly
  * added gondor env and env:set to view and set instance environment variables
@@ -11,6 +44,7 @@ CHANGELOG
  * added -v/--verbose for increasing verbosity level
  * default verbosity level makes "Reading from configuration... [ok]" hidden by default
  * added [app] compressor which enables running compress (from django_compressor) during deployment
+ * removed checks on project layout (fixes Django 1.4 support) and paves way for more flexible layouts
 
 1.0.1
 =====
