@@ -2,8 +2,8 @@
 CHANGELOG
 =========
 
-HEAD
-====
+1.0.6 (in progress)
+===================
 
  * improved path handling of file argument to database:load
 
