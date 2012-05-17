@@ -5,7 +5,7 @@ CHANGELOG
 HEAD
 ====
 
- * improved path handling of database:load
+ * improved path handling of file argument to database:load
 
 1.0.5
 =====
