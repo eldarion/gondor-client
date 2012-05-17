@@ -224,7 +224,6 @@ def cmd_deploy(args, env, config):
         url = "%s/instance/deploy/" % config["gondor.endpoint"]
         
         with open(tarball_path, "rb") as tarball:
-            run_on_deploy = not args.no_on_deploy
             params = {
                 "version": __version__,
                 "site_key": config["gondor.site_key"],
@@ -234,9 +233,11 @@ def cmd_deploy(args, env, config):
                 "tarball": tarball,
                 "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
                 "spin": {True: "true", False: "false"}[args.spin],
-                "run_on_deploy": {True: "true", False: "false"}[run_on_deploy],
+                "run_on_deploy": {True: "true", False: "false"}[not args.no_on_deploy],
                 "app": json.dumps(config["app"]),
             }
+            print params
+            raise Exception
             handlers = [
                 http.MultipartPostHandler,
                 http.UploadProgressHandler(pb, ssl=True),
