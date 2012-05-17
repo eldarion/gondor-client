@@ -7,10 +7,8 @@ CHANGELOG
 
  * added --spin to deploy enabling incoming HTTP requests to be held for
    five seconds before being sent to the instance
- * added --no-on-deploy, --no-migration, --no-static and --no-compressor to
-   deploy preventing migrations, staticfiles and compressor to run on
-   deployment. [this is a temporary development feature only; we have plans
-   for a more generic approach to this coming soon]
+ * added --no-on-deploy to deploy command which will prevent running of
+   on_deploy commands
  * improved run to use the new interactive process on Gondor
 
 1.0.6 (in progress)
