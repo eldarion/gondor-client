@@ -841,56 +841,43 @@ def main():
         out = globals()["out"]
     
     if args.command != "init":
-        gondor_dirname = ".gondor"
+        config_file = "gondor.yml"
         try:
-            env["project_root"] = utils.find_nearest(os.getcwd(), gondor_dirname)
+            env["project_root"] = utils.find_nearest(os.getcwd(), config_file)
         except OSError:
-            error("unable to find a .gondor directory.\n")
+            error("unable to find %s configuration file.\n" % config_file)
         
         if args.verbose > 1:
             out("Reading configuration... ")
         
-        def parse_config(name):
-            local_config = ConfigParser.RawConfigParser()
-            local_config.read(os.path.join(env["project_root"], gondor_dirname, name))
-            return local_config
-        local_config = parse_config("config")
+        # load yaml library
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "yaml-3.10.zip")))
+        import yaml
+        local_config = yaml.load(open(config_file, "rb"))
         
         if args.verbose > 1:
             out("[ok]\n")
         
         config.update({
-            "auth.username": config_value(local_config, "auth", "username", config["auth.username"]),
-            "auth.password": config_value(local_config, "auth", "password", config["auth.password"]),
-            "auth.key": config_value(local_config, "auth", "key", config["auth.key"]),
-            "gondor.site_key": config_value(local_config, "gondor", "site_key", False),
-            "gondor.endpoint": config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT),
-            "gondor.vcs": local_config.get("gondor", "vcs"),
+            "auth.username": local_config.get("auth", {}).get("username", config["auth.username"]),
+            "auth.password": local_config.get("auth", {}).get("password", config["auth.password"]),
+            "auth.key": local_config.get("auth", {}).get("key", config["auth.key"]),
+            "gondor.site_key": local_config.get("key"),
+            "gondor.endpoint": local_config.get("endpoint", DEFAULT_ENDPOINT),
+            "gondor.vcs": local_config.get("vcs"),
             "app": {
-                "requirements_file": config_value(local_config, "app", "requirements_file"),
-                "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
-                "migrations": config_value(local_config, "app", "migrations"),
-                "staticfiles": config_value(local_config, "app", "staticfiles"),
-                "compressor": config_value(local_config, "app", "compressor"),
-                "site_media_url": config_value(local_config, "app", "site_media_url"),
-                "settings_module": config_value(local_config, "app", "settings_module"),
-                "managepy": config_value(local_config, "app", "managepy"),
-                "local_settings": config_value(local_config, "app", "local_settings"),
+                "requirements_file": local_config.get("requirements_file"),
+                "wsgi_entry_point": local_config.get("wsgi", {}).get("entry_point"),
+                "settings_module": local_config.get("django", {}).get("settings_module"),
+                "managepy": local_config.get("django", {}).get("managepy"),
+                "local_settings": local_config.get("django", {}).get("local_settings"),
             }
         })
         
-        if not config["gondor.site_key"]:
-            if args.verbose > 1:
-                out("Loading separate site_key... ")
-            try:
-                site_key_config = parse_config("site_key")
-                config["gondor.site_key"] = site_key_config.get("gondor", "site_key")
-            except ConfigParser.NoSectionError:
-                if args.verbose > 1:
-                    out("[failed]\n")
-                error("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n");
-            if args.verbose > 1:
-                out("[ok]\n")
+        # allow some values to be overriden from os.environ
+        config["auth.username"] = os.environ.get("GONDOR_AUTH_USERNAME", config["auth.username"])
+        config["auth.key"] = os.environ.get("GONDOR_AUTH_KEY", config["auth.key"])
+        config["gondor.site_key"] = os.environ.get("GONDOR_SITE_KEY", config["gondor.site_key"])
         
         try:
             vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]
@@ -904,7 +891,7 @@ def main():
     if (config["auth.username"] is None and (config["auth.password"] is None or config["auth.key"] is None)):
         message = "you must set your credentials in %s" % os.path.expanduser("~/.gondor")
         if "project_root" in env:
-            message += " or %s" % os.path.join(env["project_root"], ".gondor", "config")
+            message += " or %s" % os.path.join(env["project_root"], config_file)
         message += "\n"
         error(message)
     
