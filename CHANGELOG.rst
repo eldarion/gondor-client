@@ -13,8 +13,8 @@ CHANGELOG
    for a more generic approach to this coming soon]
  * improved run to use the new interactive process on Gondor
 
-1.0.X
-=====
+1.0.6 (in progress)
+===================
 
  * improved path handling of file argument to database:load
 
