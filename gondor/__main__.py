@@ -236,8 +236,6 @@ def cmd_deploy(args, env, config):
                 "run_on_deploy": {True: "true", False: "false"}[not args.no_on_deploy],
                 "app": json.dumps(config["app"]),
             }
-            print params
-            raise Exception
             handlers = [
                 http.MultipartPostHandler,
                 http.UploadProgressHandler(pb, ssl=True),
