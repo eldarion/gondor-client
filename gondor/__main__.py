@@ -559,10 +559,11 @@ def cmd_manage(args, env, config):
     ]
     if operation in ["database:load"]:
         if opargs:
+            filename = os.path.abspath(os.path.expanduser(opargs[0]))
             try:
-                fp = open(opargs[0], "rb")
+                fp = open(filename, "rb")
             except IOError:
-                error("unable to open %s\n" % opargs[0])
+                error("unable to open %s\n" % filename)
             out("Compressing file... ")
             fd, tmp = tempfile.mkstemp()
             with gzip.open(tmp, "wb") as fpc:

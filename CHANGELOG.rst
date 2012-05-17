@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+HEAD
+====
+
+ * improved path handling of database:load
+
 1.0.5
 =====
 
