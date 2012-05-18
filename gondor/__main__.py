@@ -247,6 +247,7 @@ def cmd_deploy(args, env, config):
                 out("\nCanceling uploading... [ok]\n")
                 sys.exit(1)
             except urllib2.HTTPError, e:
+                out("\n")
                 api_error(e)
             else:
                 out("\n")
