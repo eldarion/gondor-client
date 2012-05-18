@@ -867,6 +867,8 @@ def main():
             "gondor.vcs": local_config.get("vcs"),
             "app": {
                 "requirements_file": local_config.get("requirements_file"),
+                "framework": local_config.get("framework"),
+                "on_deploy": local_config.get("on_deploy", []),
                 "wsgi_entry_point": local_config.get("wsgi", {}).get("entry_point"),
                 "settings_module": local_config.get("django", {}).get("settings_module"),
                 "managepy": local_config.get("django", {}).get("managepy"),
