@@ -455,26 +455,19 @@ def cmd_run(args, env, config):
                             continue
                         raise
                     if sock in rr:
-                        data = sock.recv((1024 * 1024))
+                        data = sock.recv(4096)
                         if not data:
                             break
-                        payload = json.loads(data)
-                        if payload["action"] == "read":
-                            data = payload["data"]
-                            while data:
-                                n = os.write(sys.stdout.fileno(), data)
-                                data = data[n:]
-                        elif payload["action"] == "timeout":
-                            err("\nSession has timed out")
-                            break
+                        while data:
+                            n = os.write(sys.stdout.fileno(), data)
+                            data = data[n:]
                     if sys.stdin in rr:
-                        data = os.read(sys.stdin.fileno(), (1024 * 1024))
-                        data = json.dumps({"action": "write", "data": data})
+                        data = os.read(sys.stdin.fileno(), 4096)
                         while data:
                             n = sock.send(data)
                             data = data[n:]
                 except KeyboardInterrupt:
-                    sock.sendall(json.dumps({"action": "write", "data": "\003"}))
+                    sock.sendall(chr(3))
             err("\n")
     finally:
         if sys.stdin.isatty():
