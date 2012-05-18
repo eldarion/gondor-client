@@ -468,7 +468,6 @@ def cmd_run(args, env, config):
                             data = data[n:]
                 except KeyboardInterrupt:
                     sock.sendall(chr(3))
-            err("\n")
     finally:
         if sys.stdin.isatty():
             os.system("stty icanon echo")
