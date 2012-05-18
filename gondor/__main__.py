@@ -439,6 +439,7 @@ def cmd_run(args, env, config):
                 try:
                     sock.connect(endpoint)
                 except IOError, e:
+                    time.sleep(0.5)
                     continue
                 else:
                     err("[ok]\n")
