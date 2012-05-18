@@ -6,6 +6,7 @@ CHANGELOG
 ===================
 
  * improved path handling of file argument to database:load
+ * fixed formatting of errors when deploying
 
 1.0.5
 =====
