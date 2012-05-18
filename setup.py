@@ -21,6 +21,7 @@ setup(
     package_data = {
         "gondor": [
             "ssl/*.crt",
+            "yaml-3.10.zip",
         ]
     },
     zip_safe = False,
