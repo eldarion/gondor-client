@@ -465,7 +465,7 @@ def cmd_run(args, env, config):
                                 n = os.write(sys.stdout.fileno(), data)
                                 data = data[n:]
                         elif payload["action"] == "timeout":
-                            err("\ntimed out\n")
+                            err("\nSession has timed out")
                             break
                     if sys.stdin in rr:
                         data = os.read(sys.stdin.fileno(), (1024 * 1024))
