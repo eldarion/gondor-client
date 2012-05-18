@@ -21,7 +21,8 @@ def find_nearest(directory, search):
         d = os.path.sep.join(parts[:-idx])
         if not d:
             d = os.path.sep.join(parts)
-        if os.path.isdir(os.path.join(d, search)):
+        s = os.path.join(d, search)
+        if os.path.isdir(s) or os.path.isfile(s):
             return d
     raise OSError
 
