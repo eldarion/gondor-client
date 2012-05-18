@@ -375,118 +375,110 @@ def cmd_run(args, env, config):
     instance_label = args.instance_label[0]
     command = args.command_
     
-    if sys.stdin.isatty() and sys.stdout.isatty():
-        # look for rlwrap and if found use it!
-        try:
-            rlwrap = utils.find_command("rlwrap")
-        except utils.BadCommand:
-            pass
-        else:
-            if "RLWRAP_WRAPPED" not in os.environ:
-                if args.verbose > 1:
-                    out("Detected rlwrap; respawning with rlwrap\n")
-                os.environ["RLWRAP_WRAPPED"] = "1" # allow us to detect the wrapping on execl
-                args = [rlwrap, os.environ["_"], "run", instance_label] + command
-                os.execl(rlwrap, *args)
-    
-    err("Attaching... ")
-    url = "%s/instance/run/" % config["gondor.endpoint"]
-    params = {
-        "version": __version__,
-        "site_key": config["gondor.site_key"],
-        "instance_label": instance_label,
-        "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
-        "command": " ".join(command),
-        "app": json.dumps(config["app"]),
-    }
+    if sys.stdin.isatty():
+        os.system("stty -icanon -echo")
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
-        err("[failed]\n")
-        api_error(e)
-    data = json.loads(response.read())
-    endpoint = tuple(data["endpoint"])
-    
-    if data["status"] == "error":
-        err("[error]\n")
-        error("%s\n" % data["message"])
-    if data["status"] == "success":
-        task_id = data["task"]
-        while True:
-            params = {
-                "version": __version__,
-                "site_key": config["gondor.site_key"],
-                "instance_label": instance_label,
-                "task_id": task_id,
-            }
-            url = "%s/task/status/" % config["gondor.endpoint"]
-            response = make_api_call(config, url, urllib.urlencode(params))
-            data = json.loads(response.read())
-            if data["status"] == "error":
-                err("[error]\n")
-                err("\nError: %s\n" % data["message"])
-            if data["status"] == "success":
-                if data["state"] == "finished":
-                    # task finished; move on
-                    break
-                elif data["state"] == "failed":
-                    err("[failed]\n")
-                    error("%s\n" % data["reason"])
-                elif data["state"] == "locked":
-                    err("[locked]\n")
-                    err("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
-                    sys.exit(1)
-                else:
-                    time.sleep(2)
-        # connect to process
-        for x in xrange(5):
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            ssl_kwargs = {
-                "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
-                "cert_reqs": ssl.CERT_REQUIRED,
-                "ssl_version": ssl.PROTOCOL_SSLv3
-            }
-            sock = ssl.wrap_socket(sock, **ssl_kwargs)
-            try:
-                sock.connect(endpoint)
-            except IOError, e:
-                continue
-            else:
-                err("[ok]\n")
-                break
-        else:
-            err("[failed]\n")
-            error("unable to attach to process (reason: %s)\n" % e)
+        err("Attaching... ")
+        url = "%s/instance/run/" % config["gondor.endpoint"]
+        params = {
+            "version": __version__,
+            "site_key": config["gondor.site_key"],
+            "instance_label": instance_label,
+            "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
+            "command": " ".join(command),
+            "app": json.dumps(config["app"]),
+        }
         try:
+            response = make_api_call(config, url, urllib.urlencode(params))
+        except urllib2.HTTPError, e:
+            err("[failed]\n")
+            api_error(e)
+        data = json.loads(response.read())
+        endpoint = tuple(data["endpoint"])
+        
+        if data["status"] == "error":
+            err("[error]\n")
+            error("%s\n" % data["message"])
+        if data["status"] == "success":
+            task_id = data["task"]
+            while True:
+                params = {
+                    "version": __version__,
+                    "site_key": config["gondor.site_key"],
+                    "instance_label": instance_label,
+                    "task_id": task_id,
+                }
+                url = "%s/task/status/" % config["gondor.endpoint"]
+                response = make_api_call(config, url, urllib.urlencode(params))
+                data = json.loads(response.read())
+                if data["status"] == "error":
+                    err("[error]\n")
+                    err("\nError: %s\n" % data["message"])
+                if data["status"] == "success":
+                    if data["state"] == "finished":
+                        # task finished; move on
+                        break
+                    elif data["state"] == "failed":
+                        err("[failed]\n")
+                        error("%s\n" % data["reason"])
+                    elif data["state"] == "locked":
+                        err("[locked]\n")
+                        err("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
+                        sys.exit(1)
+                    else:
+                        time.sleep(2)
+            # connect to process
+            for x in xrange(5):
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                ssl_kwargs = {
+                    "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
+                    "cert_reqs": ssl.CERT_REQUIRED,
+                    "ssl_version": ssl.PROTOCOL_SSLv3
+                }
+                sock = ssl.wrap_socket(sock, **ssl_kwargs)
+                try:
+                    sock.connect(endpoint)
+                except IOError, e:
+                    continue
+                else:
+                    err("[ok]\n")
+                    break
+            else:
+                err("[failed]\n")
+                error("unable to attach to process (reason: %s)\n" % e)
             while True:
                 try:
-                    rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
-                except select.error, e:
-                    if e.args[0] == errno.EINTR:
-                        continue
-                    raise
-                if sock in rr:
-                    data = sock.recv((1024 * 1024))
-                    if not data:
-                        break
-                    payload = json.loads(data)
-                    if payload["action"] == "read":
-                        data = payload["data"]
+                    try:
+                        rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
+                    except select.error, e:
+                        if e.args[0] == errno.EINTR:
+                            continue
+                        raise
+                    if sock in rr:
+                        data = sock.recv((1024 * 1024))
+                        if not data:
+                            break
+                        payload = json.loads(data)
+                        if payload["action"] == "read":
+                            data = payload["data"]
+                            while data:
+                                n = os.write(sys.stdout.fileno(), data)
+                                data = data[n:]
+                        elif payload["action"] == "timeout":
+                            err("\ntimed out\n")
+                            break
+                    if sys.stdin in rr:
+                        data = os.read(sys.stdin.fileno(), (1024 * 1024))
+                        data = json.dumps({"action": "write", "data": data})
                         while data:
-                            n = os.write(sys.stdout.fileno(), data)
+                            n = sock.send(data)
                             data = data[n:]
-                    elif payload["action"] == "timeout":
-                        err("\ntimed out\n")
-                        break
-                if sys.stdin in rr:
-                    data = os.read(sys.stdin.fileno(), (1024 * 1024))
-                    data = json.dumps({"action": "write", "data": data})
-                    while data:
-                        n = sock.send(data)
-                        data = data[n:]
-        except KeyboardInterrupt:
-            sock.sendall(json.dumps({"action": "interrupt"}))
+                except KeyboardInterrupt:
+                    sock.sendall(json.dumps({"action": "write", "data": "\003"}))
             err("\n")
+    finally:
+        if sys.stdin.isatty():
+            os.system("stty icanon echo")
 
 
 def cmd_delete(args, env, config):
