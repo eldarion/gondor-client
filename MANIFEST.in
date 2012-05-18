@@ -1,1 +1,2 @@
 recursive-include gondor/ssl *.crt
+include gondor/yaml-3.10.zip
