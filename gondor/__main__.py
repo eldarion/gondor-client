@@ -101,6 +101,11 @@ def cmd_init(args, env, config):
             staticfiles = staticfiles.strip().lower()
             if staticfiles == "on":
                 on_deploy.append("    - manage.py collectstatic --noinput")
+        compressor = config_value(legacy_config, "app", "compressor")
+        if compressor:
+            compressor = compressor.strip().lower()
+            if compressor == "on":
+                on_deploy.append("    - manage.py compress")
     else:
         site_key = args.site_key[0]
         if len(site_key) < 11:
