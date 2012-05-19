@@ -2,6 +2,7 @@ import argparse
 import ConfigParser
 import errno
 import gzip
+import itertools
 import os
 import re
 import select
@@ -85,7 +86,7 @@ def cmd_init(args, env, config):
             "requirements_file": config_value(legacy_config, "app", "requirements_file"),
             "wsgi_entry_point": config_value(legacy_config, "app", "wsgi_entry_point"),
         })
-        on_deploy = []
+        on_deploy, static_urls = [], []
         migrations = config_value(legacy_config, "app", "migrations")
         if migrations:
             migrations = migrations.strip().lower()
@@ -106,6 +107,9 @@ def cmd_init(args, env, config):
             compressor = compressor.strip().lower()
             if compressor == "on":
                 on_deploy.append("    - manage.py compress")
+        site_media_url = config_value(legacy_config, "app", "site_media_url")
+        if site_media_url:
+            static_urls.extend(["    - %s:" % site_media_url, "        root: site_media/"])
     else:
         site_key = args.site_key[0]
         if len(site_key) < 11:
@@ -113,6 +117,7 @@ def cmd_init(args, env, config):
         ctx["wsgi_entry_point"] = "wsgi:application"
         ctx["requirements_file"] = "requirements.txt"
         on_deploy = []
+        static_urls = ["    - /site_media:", "        root: site_media/"]
         try:
             utils.find_nearest(os.getcwd(), ".git")
         except OSError:
@@ -134,6 +139,7 @@ def cmd_init(args, env, config):
         ctx["on_deploy"] = "# on_deploy:\n#     - manage.py syncdb --noinput\n#     - manage.py collectstatic --noinput"
     else:
         ctx["on_deploy"] = "\n".join(["on_deploy:"] + on_deploy)
+    ctx["static_urls"] = "\n".join(["static_urls:"] + static_urls)
     if not os.path.exists(config_file):
         config_file_data = """# The site key found on your site detail page.
 key: %(site_key)s
@@ -147,6 +153,10 @@ requirements_file: %(requirements_file)s
 # Commands to be exeucted during deployment. These can handle migrations or
 # moving static files into place. Accepts same parameters as gondor run.
 %(on_deploy)s
+
+# URLs which should be served by Gondor mapping to a filesystem location
+# relative to your writable storage area.
+%(static_urls)s
 
 wsgi:
     # The WSGI entry point of your application in two parts separated by a
@@ -899,6 +909,10 @@ def main():
                 "requirements_file": local_config.get("requirements_file"),
                 "framework": local_config.get("framework"),
                 "on_deploy": local_config.get("on_deploy", []),
+                "static_urls": list(itertools.chain(*[
+                    [(u, c) for u, c in su.iteritems()]
+                    for su in local_config.get("static_urls", [])
+                ])),
                 "wsgi_entry_point": local_config.get("wsgi", {}).get("entry_point"),
                 "settings_module": local_config.get("django", {}).get("settings_module"),
                 "managepy": local_config.get("django", {}).get("managepy"),
