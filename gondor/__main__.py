@@ -20,6 +20,9 @@ try:
 except ImportError:
     import json
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "yaml-3.10.zip")))
+import yaml
+
 from gondor import __version__
 from gondor import http, utils
 from gondor.api import make_api_call
@@ -29,6 +32,7 @@ from gondor.progressbar import ProgressBar
 out = utils.out
 err = utils.err
 error = utils.error
+warn = utils.warn
 api_error = utils.api_error
 
 
@@ -42,77 +46,128 @@ def config_value(config, section, key, default=None):
         return default
 
 
-def cmd_init(args, env, config):
-    site_key = args.site_key[0]
-    if len(site_key) < 11:
-        error("The site key given is too short.\n")
-    
-    gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
-    
+def load_config(kind):
+    config_file = {
+        "global": os.path.expanduser("~/.gondor"),
+        "local": os.path.abspath("./gondor.yml"),
+    }[kind]
     try:
-        repo_root = utils.find_nearest(os.getcwd(), ".git")
-    except OSError:
+        return yaml.load(open(config_file, "rb"))
+    except yaml.parser.ParserError:
+        if kind == "global":
+            c = ConfigParser.RawConfigParser()
+            try:
+                c.read(config_file)
+            except Exception:
+                # ignore any exceptions while reading config
+                pass
+            else:
+                warn("upgrade %s to YAML\n" % config_file)
+                return {
+                    "auth": {
+                        "username": config_value(c, "auth", "username"),
+                        "key": config_value(c, "auth", "key"),
+                    }
+                }
+        error("unable to parse %s\n" % config_file)
+
+
+def cmd_init(args, env, config):
+    config_file = "gondor.yml"
+    ctx = dict(config_file=config_file)
+    if args.upgrade:
+        gondor_dir = utils.find_nearest(os.getcwd(), ".gondor")
+        legacy_config = ConfigParser.RawConfigParser()
+        legacy_config.read(os.path.abspath(os.path.join(gondor_dir, ".gondor", "config")))
+        ctx.update({
+            "site_key": config_value(legacy_config, "gondor", "site_key"),
+            "vcs": config_value(legacy_config, "gondor", "vcs"),
+            "requirements_file": config_value(legacy_config, "app", "requirements_file"),
+            "wsgi_entry_point": config_value(legacy_config, "app", "wsgi_entry_point"),
+        })
+        on_deploy = []
+        migrations = config_value(legacy_config, "app", "migrations")
+        if migrations:
+            migrations = migrations.strip().lower()
+            if migrations == "none":
+                on_deploy.append("    - manage.py syncdb --noinput")
+            if migrations == "nashvegas":
+                on_deploy.append("    - manage.py upgradedb --execute")
+            if migrations == "south":
+                on_deploy.append("    - manage.py syncdb --noinput")
+                on_deploy.append("    - manage.py migrate --noinput")
+        staticfiles = config_value(legacy_config, "app", "staticfiles")
+        if staticfiles:
+            staticfiles = staticfiles.strip().lower()
+            if staticfiles == "on":
+                on_deploy.append("    - manage.py collectstatic --noinput")
+    else:
+        site_key = args.site_key[0]
+        if len(site_key) < 11:
+            error("The site key given is too short.\n")
+        ctx["wsgi_entry_point"] = "wsgi:application"
+        ctx["requirements_file"] = "requirements.txt"
+        on_deploy = []
         try:
-            repo_root = utils.find_nearest(os.getcwd(), ".hg")
+            utils.find_nearest(os.getcwd(), ".git")
         except OSError:
-            error("unable to find a supported version control directory. Looked for .git and .hg.\n")
+            try:
+                utils.find_nearest(os.getcwd(), ".hg")
+            except OSError:
+                error("unable to find a supported version control directory. Looked for .git and .hg.\n")
+            else:
+                vcs = "hg"
         else:
-            vcs = "hg"
+            vcs = "git"
+        ctx.update({
+            "site_key": site_key,
+            "vcs": vcs,
+            "requirements_file": "requirements.txt",
+            "wsgi_entry_point": "wsgi:application",
+        })
+    if not on_deploy:
+        ctx["on_deploy"] = "# on_deploy:\n#     - manage.py syncdb --noinput\n#     - manage.py collectstatic --noinput"
     else:
-        vcs = "git"
-    
-    if not os.path.exists(gondor_dir):
-        os.mkdir(gondor_dir)
-        
-        config_file = """[gondor]
-site_key = %(site_key)s
-vcs = %(vcs)s
+        ctx["on_deploy"] = "\n".join(["on_deploy:"] + on_deploy)
+    if not os.path.exists(config_file):
+        config_file_data = """# The site key found on your site detail page.
+key: %(site_key)s
 
-[app]
-; This path is relative to your project root (the directory .gondor is in)
-requirements_file = requirements.txt
+# Version control system used locally for your project.
+vcs: %(vcs)s
 
-; The wsgi entry point of your application in two parts separated by a colon.
-; wsgi:deploy where wsgi is the Python module which should be importable and
-; application which represents the callable in the module.
-wsgi_entry_point = wsgi:application
+# This path is relative to your project root (the directory %(config_file)s lives in)
+requirements_file: %(requirements_file)s
 
-; Can be either nashvegas, south or none
-migrations = none
+# Commands to be exeucted during deployment. These can handle migrations or
+# moving static files into place. Accepts same parameters as gondor run.
+%(on_deploy)s
 
-; Whether or not to run collectstatic during deployment
-staticfiles = off
-
-; Whether or not to run compress (from django_compressor) during deployment
-compressor = off
-
-; Path to map frontend servers to for your site media (includes both STATIC_URL
-; and MEDIA_URL; you must ensure they are under the same path)
-site_media_url = /site_media
-
-; The location of your manage.py. Gondor uses this as an entry point for
-; management commands. This is relative to the directory .gondor lives in.
-; managepy = manage.py
-
-; Gondor will use settings_module as DJANGO_SETTINGS_MODULE when it runs your
-; code. Commented out by default (means it will not be set).
-; settings_module = settings
-""" % {
-    "site_key": site_key,
-    "vcs": vcs
-}
-        
-        out("Writing configuration (.gondor/config)... ")
-        with open(os.path.join(gondor_dir, "config"), "wb") as cf:
-            cf.write(config_file)
+wsgi:
+    # The WSGI entry point of your application in two parts separated by a
+    # colon. Example:
+    #
+    #     wsgi:application
+    #
+    # wsgi = the Python module which should be importable
+    # application = the callable in the Python module
+    entry_point: %(wsgi_entry_point)s
+""" % ctx
+        out("Writing configuration (%s)... " % config_file)
+        with open(config_file, "wb") as cf:
+            cf.write(config_file_data)
         out("[ok]\n")
-         
-        out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
-        out("check .gondor/config (in this directory) for correct values for your\n")
-        out("application. Once you are ready, run:\n\n")
-        out("    gondor deploy primary %s\n" % {"git": "master", "hg": "default"}[vcs])
+        if args.upgrade:
+            out("\nYour configuration file has been upgraded. New configuration is located\n")
+            out("in %s. Make sure you check this file before continuing then add and\n" % config_file)
+            out("commit it to your VCS.\n")
+        else:
+            out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
+            out("check %s (in this directory) for correct values for your\n" % config_file)
+            out("application. Once you are ready, run:\n\n")
+            out("    gondor deploy primary %s\n" % {"git": "master", "hg": "default"}[vcs])
     else:
-        out("Detecting existing .gondor/config. Not overriding.\n")
+        out("Detected existing %s. Not overriding.\n" % config_file)
 
 
 def cmd_create(args, env, config):
@@ -734,7 +789,8 @@ def main():
     
     # cmd: init
     parser_init = command_parsers.add_parser("init")
-    parser_init.add_argument("site_key", nargs=1)
+    parser_init.add_argument("--upgrade", action="store_true")
+    parser_init.add_argument("site_key", nargs="?")
     
     # cmd: create
     parser_create = command_parsers.add_parser("create")
@@ -801,12 +857,10 @@ def main():
     
     # config / env
     
-    global_config = ConfigParser.RawConfigParser()
-    global_config.read(os.path.expanduser("~/.gondor"))
+    global_config = load_config("global")
     config = {
-        "auth.username": config_value(global_config, "auth", "username"),
-        "auth.password": config_value(global_config, "auth", "password"),
-        "auth.key": config_value(global_config, "auth", "key"),
+        "auth.username": global_config.get("auth", {}).get("username"),
+        "auth.key": global_config.get("auth", {}).get("key"),
     }
     env = {}
     
@@ -825,17 +879,13 @@ def main():
         if args.verbose > 1:
             out("Reading configuration... ")
         
-        # load yaml library
-        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "yaml-3.10.zip")))
-        import yaml
-        local_config = yaml.load(open(config_file, "rb"))
+        local_config = load_config("local")
         
         if args.verbose > 1:
             out("[ok]\n")
         
         config.update({
             "auth.username": local_config.get("auth", {}).get("username", config["auth.username"]),
-            "auth.password": local_config.get("auth", {}).get("password", config["auth.password"]),
             "auth.key": local_config.get("auth", {}).get("key", config["auth.key"]),
             "gondor.site_key": local_config.get("key"),
             "gondor.endpoint": local_config.get("endpoint", DEFAULT_ENDPOINT),

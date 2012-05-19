@@ -43,6 +43,10 @@ def error(msg, exit=True):
         sys.exit(1)
 
 
+def warn(msg):
+    err("WARNING: %s" % msg)
+
+
 def api_error(e):
     data = e.read()
     try:
