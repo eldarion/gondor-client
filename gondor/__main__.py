@@ -1,18 +1,13 @@
 import argparse
 import ConfigParser
 import errno
-import getpass
 import gzip
 import os
 import re
-import readline
 import select
 import socket
 import ssl
-import stat
-import subprocess
 import sys
-import tarfile
 import tempfile
 import time
 import urllib
@@ -37,12 +32,6 @@ error = utils.error
 api_error = utils.api_error
 
 
-RE_VALID_USERNAME = re.compile('[\w.@+-]+$')
-EMAIL_RE = re.compile(
-    r"(^[-!#$%&'*+/=?^_`{}|~0-9A-Z]+(\.[-!#$%&'*+/=?^_`{}|~0-9A-Z]+)*"  # dot-atom
-    r'|^"([\001-\010\013\014\016-\037!#-\[\]-\177]|\\[\001-\011\013\014\016-\177])*"' # quoted-string
-    r')@(?:[A-Z0-9-]+\.)+[A-Z]{2,6}$', # domain
-    re.IGNORECASE)
 DEFAULT_ENDPOINT = "https://api.gondor.io"
 
 
