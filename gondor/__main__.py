@@ -435,103 +435,111 @@ def cmd_run(args, env, config):
     instance_label = args.instance_label[0]
     command = args.command_
     
-    if sys.stdin.isatty():
-        os.system("stty -icanon -echo")
-    try:
+    if not args.detached:
         err("Attaching... ")
-        url = "%s/instance/run/" % config["gondor.endpoint"]
-        params = {
-            "version": __version__,
-            "site_key": config["gondor.site_key"],
-            "instance_label": instance_label,
-            "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
-            "command": " ".join(command),
-            "app": json.dumps(config["app"]),
-        }
-        try:
+    else:
+        err("Spawning... ")
+    url = "%s/instance/run/" % config["gondor.endpoint"]
+    params = {
+        "version": __version__,
+        "site_key": config["gondor.site_key"],
+        "instance_label": instance_label,
+        "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
+        "detached": {True: "true", False: "false"}[args.detached],
+        "command": " ".join(command),
+        "app": json.dumps(config["app"]),
+    }
+    try:
+        response = make_api_call(config, url, urllib.urlencode(params))
+    except urllib2.HTTPError, e:
+        err("[failed]\n")
+        api_error(e)
+    data = json.loads(response.read())
+    endpoint = None if args.detached else tuple(data["endpoint"])
+    if data["status"] == "error":
+        err("[error]\n")
+        error("%s\n" % data["message"])
+    if data["status"] == "success":
+        task_id = data["task"]
+        while True:
+            params = {
+                "version": __version__,
+                "site_key": config["gondor.site_key"],
+                "instance_label": instance_label,
+                "task_id": task_id,
+            }
+            url = "%s/task/status/" % config["gondor.endpoint"]
             response = make_api_call(config, url, urllib.urlencode(params))
-        except urllib2.HTTPError, e:
-            err("[failed]\n")
-            api_error(e)
-        data = json.loads(response.read())
-        endpoint = tuple(data["endpoint"])
-        
-        if data["status"] == "error":
-            err("[error]\n")
-            error("%s\n" % data["message"])
-        if data["status"] == "success":
-            task_id = data["task"]
-            while True:
-                params = {
-                    "version": __version__,
-                    "site_key": config["gondor.site_key"],
-                    "instance_label": instance_label,
-                    "task_id": task_id,
-                }
-                url = "%s/task/status/" % config["gondor.endpoint"]
-                response = make_api_call(config, url, urllib.urlencode(params))
-                data = json.loads(response.read())
-                if data["status"] == "error":
-                    err("[error]\n")
-                    err("\nError: %s\n" % data["message"])
-                if data["status"] == "success":
-                    if data["state"] == "finished":
-                        # task finished; move on
-                        break
-                    elif data["state"] == "failed":
-                        err("[failed]\n")
-                        error("%s\n" % data["reason"])
-                    elif data["state"] == "locked":
-                        err("[locked]\n")
-                        err("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
-                        sys.exit(1)
-                    else:
-                        time.sleep(2)
-            # connect to process
-            for x in xrange(5):
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                ssl_kwargs = {
-                    "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
-                    "cert_reqs": ssl.CERT_REQUIRED,
-                    "ssl_version": ssl.PROTOCOL_SSLv3
-                }
-                sock = ssl.wrap_socket(sock, **ssl_kwargs)
-                try:
-                    sock.connect(endpoint)
-                except IOError, e:
-                    time.sleep(0.5)
-                    continue
-                else:
-                    err("[ok]\n")
+            data = json.loads(response.read())
+            if data["status"] == "error":
+                err("[error]\n")
+                error("%s\n" % data["message"])
+            if data["status"] == "success":
+                if data["state"] == "finished":
+                    if args.detached:
+                        err("[ok]\n")
+                    # task finished; move on
                     break
-            else:
-                err("[failed]\n")
-                error("unable to attach to process (reason: %s)\n" % e)
-            while True:
-                try:
+                elif data["state"] == "failed":
+                    err("[failed]\n")
+                    error("%s\n" % data["reason"])
+                elif data["state"] == "locked":
+                    err("[locked]\n")
+                    err("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
+                    sys.exit(1)
+                else:
+                    time.sleep(2)
+        if args.detached:
+            err("Check your logs for output.\n")
+        else:
+            if sys.stdin.isatty():
+                os.system("stty -icanon -echo")
+            try:
+                # connect to process
+                for x in xrange(5):
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    ssl_kwargs = {
+                        "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
+                        "cert_reqs": ssl.CERT_REQUIRED,
+                        "ssl_version": ssl.PROTOCOL_SSLv3
+                    }
+                    sock = ssl.wrap_socket(sock, **ssl_kwargs)
                     try:
-                        rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
-                    except select.error, e:
-                        if e.args[0] == errno.EINTR:
-                            continue
-                        raise
-                    if sock in rr:
-                        data = sock.recv(4096)
-                        if not data:
-                            break
-                        while data:
-                            n = os.write(sys.stdout.fileno(), data)
-                            data = data[n:]
-                    if sys.stdin in rr:
-                        data = os.read(sys.stdin.fileno(), 4096)
-                        while data:
-                            n = sock.send(data)
-                            data = data[n:]
-                except KeyboardInterrupt:
-                    sock.sendall(chr(3))
-    finally:
-        if sys.stdin.isatty():
-            os.system("stty icanon echo")
+                        sock.connect(endpoint)
+                    except IOError, e:
+                        time.sleep(0.5)
+                        continue
+                    else:
+                        err("[ok]\n")
+                        break
+                else:
+                    err("[failed]\n")
+                    error("unable to attach to process (reason: %s)\n" % e)
+                while True:
+                    try:
+                        try:
+                            rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
+                        except select.error, e:
+                            if e.args[0] == errno.EINTR:
+                                continue
+                            raise
+                        if sock in rr:
+                            data = sock.recv(4096)
+                            if not data:
+                                break
+                            while data:
+                                n = os.write(sys.stdout.fileno(), data)
+                                data = data[n:]
+                        if sys.stdin in rr:
+                            data = os.read(sys.stdin.fileno(), 4096)
+                            while data:
+                                n = sock.send(data)
+                                data = data[n:]
+                    except KeyboardInterrupt:
+                        sock.sendall(chr(3))
+            finally:
+                if sys.stdin.isatty():
+                    os.system("stty icanon echo")
 
 
 def cmd_delete(args, env, config):
@@ -825,6 +833,10 @@ def main():
     
     # cmd: run
     parser_run = command_parsers.add_parser("run")
+    parser_run.add_argument("--detached",
+        action="store_true",
+        help="run process in detached (output is sent to logs)"
+    )
     parser_run.add_argument("instance_label", nargs=1)
     parser_run.add_argument("command_", nargs=argparse.REMAINDER)
     
