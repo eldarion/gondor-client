@@ -16,6 +16,7 @@ CHANGELOG
 
  * improved path handling of file argument to database:load
  * fixed formatting of errors when deploying
+ * gondor run no longer needs -- to delimit run options from command options
 
 1.0.5
 =====

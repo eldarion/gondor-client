@@ -826,7 +826,7 @@ def main():
     # cmd: run
     parser_run = command_parsers.add_parser("run")
     parser_run.add_argument("instance_label", nargs=1)
-    parser_run.add_argument("command_", nargs="+")
+    parser_run.add_argument("command_", nargs=argparse.REMAINDER)
     
     # cmd: delete
     parser_delete = command_parsers.add_parser("delete")
