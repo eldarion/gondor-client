@@ -108,8 +108,20 @@ def cmd_init(args, env, config):
             if compressor == "on":
                 on_deploy.append("    - manage.py compress")
         site_media_url = config_value(legacy_config, "app", "site_media_url")
+        managepy = config_value(legacy_config, "app", "managepy")
+        if not managepy:
+            managepy = "manage.py"
         if site_media_url:
             static_urls.extend(["    - %s:" % site_media_url, "        root: site_media/"])
+        extra_config_file_data = """django:
+    # The location of your manage.py. Gondor uses this as an entry point for
+    # management commands. This path is relative to your project root (the
+    # directory %(config_file)s lives in)
+    managepy: %(managepy)s
+""" % {
+    "managepy": managepy,
+    "config_file": config_file,
+}
     else:
         site_key = args.site_key[0]
         if len(site_key) < 11:
@@ -129,6 +141,7 @@ def cmd_init(args, env, config):
                 vcs = "hg"
         else:
             vcs = "git"
+        extra_config_file_data = ""
         ctx.update({
             "site_key": site_key,
             "vcs": vcs,
@@ -170,7 +183,7 @@ wsgi:
 """ % ctx
         out("Writing configuration (%s)... " % config_file)
         with open(config_file, "wb") as cf:
-            cf.write(config_file_data)
+            cf.write(config_file_data + extra_config_file_data)
         out("[ok]\n")
         if args.upgrade:
             out("\nYour configuration file has been upgraded. New configuration is located\n")
