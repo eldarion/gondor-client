@@ -113,7 +113,8 @@ def cmd_init(args, env, config):
             managepy = "manage.py"
         if site_media_url:
             static_urls.extend(["    - %s:" % site_media_url, "        root: site_media/"])
-        extra_config_file_data = """django:
+        extra_config_file_data = """
+django:
     # The location of your manage.py. Gondor uses this as an entry point for
     # management commands. This path is relative to your project root (the
     # directory %(config_file)s lives in)
@@ -448,10 +449,10 @@ def cmd_run(args, env, config):
     instance_label = args.instance_label[0]
     command = args.command_
     
-    if not args.detached:
-        err("Attaching... ")
-    else:
+    if args.detached:
         err("Spawning... ")
+    else:
+        err("Attaching... ")
     url = "%s/instance/run/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
