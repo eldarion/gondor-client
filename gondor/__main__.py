@@ -63,7 +63,8 @@ def load_config(kind):
                 # ignore any exceptions while reading config
                 pass
             else:
-                warn("upgrade %s to YAML\n" % config_file)
+                if args.verbose > 1:
+                    warn("upgrade %s to YAML\n" % config_file)
                 return {
                     "auth": {
                         "username": config_value(c, "auth", "username"),
