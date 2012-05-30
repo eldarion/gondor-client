@@ -47,7 +47,7 @@ def config_value(config, section, key, default=None):
         return default
 
 
-def load_config(kind):
+def load_config(args, kind):
     config_file = {
         "global": os.path.expanduser("~/.gondor"),
         "local": os.path.abspath("./gondor.yml"),
@@ -899,7 +899,7 @@ def main():
     
     # config / env
     
-    global_config = load_config("global")
+    global_config = load_config(args, "global")
     config = {
         "auth.username": global_config.get("auth", {}).get("username"),
         "auth.key": global_config.get("auth", {}).get("key"),
@@ -921,7 +921,7 @@ def main():
         if args.verbose > 1:
             out("Reading configuration... ")
         
-        local_config = load_config("local")
+        local_config = load_config(args, "local")
         
         if args.verbose > 1:
             out("[ok]\n")
