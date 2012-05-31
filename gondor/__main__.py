@@ -185,7 +185,7 @@ def cmd_deploy(args, env, config):
             if check != 0:
                 error("could not map '%s' to a SHA\n" % commit)
             tar_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar" % (label, sha)))
-            cmd = [hg, "archive", "-p", ".", "-t", "tar", "-r", sha, tar_path]
+            cmd = [hg, "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
         else:
             error("'%s' is not a valid version control system for Gondor\n" % config["gondor.vcs"])
         
