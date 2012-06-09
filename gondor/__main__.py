@@ -125,7 +125,7 @@ django:
     "config_file": config_file,
 }
     else:
-        site_key = args.site_key[0]
+        site_key = args.site_key
         if len(site_key) < 11:
             error("The site key given is too short.\n")
         ctx["wsgi_entry_point"] = "wsgi:application"
