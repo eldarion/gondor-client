@@ -941,6 +941,7 @@ def main():
                     for su in local_config.get("static_urls", [])
                 ])),
                 "wsgi_entry_point": local_config.get("wsgi", {}).get("entry_point"),
+                "gunicorn_worker_class": local_config.get("wsgi", {}).get("gunicorn", {}).get("worker_class"),
                 "settings_module": local_config.get("django", {}).get("settings_module"),
                 "managepy": local_config.get("django", {}).get("managepy"),
                 "local_settings": local_config.get("django", {}).get("local_settings"),
