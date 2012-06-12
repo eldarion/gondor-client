@@ -11,8 +11,8 @@ CHANGELOG
    on_deploy commands
  * improved run to use the new interactive process on Gondor
 
-1.0.6 (in progress)
-===================
+1.0.6
+=====
 
  * improved path handling of file argument to database:load
  * fixed formatting of errors when deploying
