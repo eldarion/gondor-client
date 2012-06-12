@@ -86,6 +86,8 @@ def cmd_init(args, env, config):
             "vcs": config_value(legacy_config, "gondor", "vcs"),
             "requirements_file": config_value(legacy_config, "app", "requirements_file"),
             "wsgi_entry_point": config_value(legacy_config, "app", "wsgi_entry_point"),
+            "framework": "django",
+            "gunicorn_worker_class": "eventlet",
         })
         on_deploy, static_urls = [], []
         migrations = config_value(legacy_config, "app", "migrations")
@@ -124,10 +126,6 @@ django:
     "managepy": managepy,
     "config_file": config_file,
 }
-        ctx.update({
-            "framework": "django",
-            "gunicorn_worker_class": "eventlet",
-        })
     else:
         site_key = args.site_key
         if len(site_key) < 11:
