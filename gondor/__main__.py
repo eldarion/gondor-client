@@ -124,6 +124,9 @@ django:
     "managepy": managepy,
     "config_file": config_file,
 }
+        ctx.update({
+            "framework": "django",
+        })
     else:
         site_key = args.site_key
         if len(site_key) < 11:
@@ -147,6 +150,7 @@ django:
         ctx.update({
             "site_key": site_key,
             "vcs": vcs,
+            "framework": "wsgi",
             "requirements_file": "requirements.txt",
             "wsgi_entry_point": "wsgi:application",
         })
@@ -161,6 +165,9 @@ key: %(site_key)s
 
 # Version control system used locally for your project.
 vcs: %(vcs)s
+
+# Framework to use on Gondor
+framework: %(framework)s
 
 # This path is relative to your project root (the directory %(config_file)s lives in)
 requirements_file: %(requirements_file)s
