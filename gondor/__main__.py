@@ -651,12 +651,15 @@ def cmd_manage(args, env, config):
                 error("unable to open %s\n" % filename)
             out("Compressing file... ")
             fd, tmp = tempfile.mkstemp()
-            with gzip.open(tmp, "wb") as fpc:
+            fpc = gzip.open(tmp, "wb")
+            try: 
                 while True:
                     chunk = fp.read(8192)
                     if not chunk:
                         break
                     fpc.write(chunk)
+            finally:
+                fpc.close()
             out("[ok]\n")
             params["stdin"] = open(tmp, "rb")
             pb = ProgressBar(0, 100, 77)
