@@ -165,7 +165,7 @@ vcs: %(vcs)s
 # This path is relative to your project root (the directory %(config_file)s lives in)
 requirements_file: %(requirements_file)s
 
-# Commands to be exeucted during deployment. These can handle migrations or
+# Commands to be executed during deployment. These can handle migrations or
 # moving static files into place. Accepts same parameters as gondor run.
 %(on_deploy)s
 
