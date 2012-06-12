@@ -8,6 +8,7 @@ CHANGELOG
  * improved path handling of file argument to database:load
  * fixed formatting of errors when deploying
  * gondor run no longer needs -- to delimit run options from command options
+ * fixed bug on Python 2.6 in database:load
 
 1.0.5
 =====
