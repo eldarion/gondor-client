@@ -306,7 +306,6 @@ def cmd_deploy(args, env, config):
                 "commit": commit,
                 "tarball": tarball,
                 "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
-                "spin": {True: "true", False: "false"}[args.spin],
                 "run_on_deploy": {True: "true", False: "false"}[not args.no_on_deploy],
                 "app": json.dumps(config["app"]),
             }
@@ -840,7 +839,6 @@ def main():
     
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
-    parser_deploy.add_argument("--spin", action="store_true")
     parser_deploy.add_argument("--no-on-deploy", action="store_true")
     parser_deploy.add_argument("label", nargs=1)
     parser_deploy.add_argument("commit", nargs=1)
