@@ -126,6 +126,7 @@ django:
 }
         ctx.update({
             "framework": "django",
+            "gunicorn_worker_class": "eventlet",
         })
     else:
         site_key = args.site_key
@@ -153,6 +154,7 @@ django:
             "framework": "wsgi",
             "requirements_file": "requirements.txt",
             "wsgi_entry_point": "wsgi:application",
+            "gunicorn_worker_class": "sync",
         })
     if not on_deploy:
         ctx["on_deploy"] = "# on_deploy:\n#     - manage.py syncdb --noinput\n#     - manage.py collectstatic --noinput"
@@ -189,6 +191,11 @@ wsgi:
     # wsgi = the Python module which should be importable
     # application = the callable in the Python module
     entry_point: %(wsgi_entry_point)s
+    
+    gunicorn:
+        # The worker class used to run gunicorn (possible values include:
+        # sync, eventlet and gevent)
+        worker_class: %(gunicorn_worker_class)s
 """ % ctx
         out("Writing configuration (%s)... " % config_file)
         with open(config_file, "wb") as cf:
