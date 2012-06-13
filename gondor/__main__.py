@@ -8,6 +8,7 @@ import re
 import select
 import socket
 import ssl
+import subprocess
 import sys
 import tempfile
 import time
@@ -476,6 +477,15 @@ def cmd_run(args, env, config):
         "app": json.dumps(config["app"]),
     }
     try:
+        params.update({
+            "tc": subprocess.check_output(["tput", "cols"]).strip(),
+            "tl": subprocess.check_output(["tput", "lines"]).strip(),
+        })
+    except (OSError, subprocess.CalledProcessError):
+        # if the above fails then no big deal; we just can't set correct
+        # terminal info so it will default some common values
+        pass
+    try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
         err("[failed]\n")
@@ -487,6 +497,7 @@ def cmd_run(args, env, config):
         error("%s\n" % data["message"])
     if data["status"] == "success":
         task_id = data["task"]
+        tc, tl = data["tc"], data["tl"]
         while True:
             params = {
                 "version": __version__,
@@ -537,6 +548,7 @@ def cmd_run(args, env, config):
                         continue
                     else:
                         err("[ok]\n")
+                        err("Terminal set to %sx%s\n" % (tc, tl))
                         break
                 else:
                     err("[failed]\n")
