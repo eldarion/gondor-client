@@ -548,7 +548,8 @@ def cmd_run(args, env, config):
                         continue
                     else:
                         err("[ok]\n")
-                        err("Terminal set to %sx%s\n" % (tc, tl))
+                        if args.verbose > 1:
+                            err("Terminal set to %sx%s\n" % (tc, tl))
                         break
                 else:
                     err("[failed]\n")
