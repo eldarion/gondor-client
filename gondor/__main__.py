@@ -121,7 +121,7 @@ def cmd_init(args, env, config):
 django:
     # The location of your manage.py. Gondor uses this as an entry point for
     # management commands. This path is relative to your project root (the
-    # directory %(config_file)s lives in)
+    # directory %(config_file)s lives in.)
     managepy: %(managepy)s
 """ % {
     "managepy": managepy,
@@ -161,16 +161,16 @@ django:
         ctx["on_deploy"] = "\n".join(["on_deploy:"] + on_deploy)
     ctx["static_urls"] = "\n".join(["static_urls:"] + static_urls)
     if not os.path.exists(config_file):
-        config_file_data = """# The site key found on your site detail page.
+        config_file_data = """# The key associated to your site.
 key: %(site_key)s
 
 # Version control system used locally for your project.
 vcs: %(vcs)s
 
-# Framework to use on Gondor
+# Framework to use on Gondor.
 framework: %(framework)s
 
-# This path is relative to your project root (the directory %(config_file)s lives in)
+# This path is relative to your project root (the directory %(config_file)s lives in.)
 requirements_file: %(requirements_file)s
 
 # Commands to be executed during deployment. These can handle migrations or
@@ -191,6 +191,7 @@ wsgi:
     # application = the callable in the Python module
     entry_point: %(wsgi_entry_point)s
     
+    # Options for gunicorn which runs your WSGI project.
     gunicorn:
         # The worker class used to run gunicorn (possible values include:
         # sync, eventlet and gevent)
