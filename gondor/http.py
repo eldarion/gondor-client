@@ -1,9 +1,7 @@
 import httplib
 import mimetools
-import mimetypes
 import os
 import re
-import stat
 import socket
 import ssl
 import sys

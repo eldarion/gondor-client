@@ -1,13 +1,15 @@
 import argparse
 import ConfigParser
-import getpass
+import errno
 import gzip
+import itertools
 import os
 import re
-import stat
+import select
+import socket
+import ssl
 import subprocess
 import sys
-import tarfile
 import tempfile
 import time
 import urllib
@@ -20,6 +22,9 @@ try:
 except ImportError:
     import json
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "yaml-3.10.zip")))
+import yaml
+
 from gondor import __version__
 from gondor import http, utils
 from gondor.api import make_api_call
@@ -29,15 +34,10 @@ from gondor.progressbar import ProgressBar
 out = utils.out
 err = utils.err
 error = utils.error
+warn = utils.warn
 api_error = utils.api_error
 
 
-RE_VALID_USERNAME = re.compile('[\w.@+-]+$')
-EMAIL_RE = re.compile(
-    r"(^[-!#$%&'*+/=?^_`{}|~0-9A-Z]+(\.[-!#$%&'*+/=?^_`{}|~0-9A-Z]+)*"  # dot-atom
-    r'|^"([\001-\010\013\014\016-\037!#-\[\]-\177]|\\[\001-\011\013\014\016-\177])*"' # quoted-string
-    r')@(?:[A-Z0-9-]+\.)+[A-Z]{2,6}$', # domain
-    re.IGNORECASE)
 DEFAULT_ENDPOINT = "https://api.gondor.io"
 
 
@@ -48,77 +48,170 @@ def config_value(config, section, key, default=None):
         return default
 
 
-def cmd_init(args, env, config):
-    site_key = args.site_key[0]
-    if len(site_key) < 11:
-        error("The site key given is too short.\n")
-    
-    gondor_dir = os.path.abspath(os.path.join(os.getcwd(), ".gondor"))
-    
+def load_config(args, kind):
+    config_file = {
+        "global": os.path.expanduser("~/.gondor"),
+        "local": os.path.abspath("./gondor.yml"),
+    }[kind]
     try:
-        repo_root = utils.find_nearest(os.getcwd(), ".git")
-    except OSError:
-        try:
-            repo_root = utils.find_nearest(os.getcwd(), ".hg")
-        except OSError:
-            error("unable to find a supported version control directory. Looked for .git and .hg.\n")
-        else:
-            vcs = "hg"
-    else:
-        vcs = "git"
-    
-    if not os.path.exists(gondor_dir):
-        os.mkdir(gondor_dir)
-        
-        config_file = """[gondor]
-site_key = %(site_key)s
-vcs = %(vcs)s
+        return yaml.load(open(config_file, "rb"))
+    except yaml.parser.ParserError:
+        if kind == "global":
+            c = ConfigParser.RawConfigParser()
+            try:
+                c.read(config_file)
+            except Exception:
+                # ignore any exceptions while reading config
+                pass
+            else:
+                if args.verbose > 1:
+                    warn("upgrade %s to YAML\n" % config_file)
+                return {
+                    "auth": {
+                        "username": config_value(c, "auth", "username"),
+                        "key": config_value(c, "auth", "key"),
+                    }
+                }
+        error("unable to parse %s\n" % config_file)
 
-[app]
-; This path is relative to your project root (the directory .gondor is in)
-requirements_file = requirements.txt
 
-; The wsgi entry point of your application in two parts separated by a colon.
-; wsgi:deploy where wsgi is the Python module which should be importable and
-; application which represents the callable in the module.
-wsgi_entry_point = wsgi:application
-
-; Can be either nashvegas, south or none
-migrations = none
-
-; Whether or not to run collectstatic during deployment
-staticfiles = off
-
-; Whether or not to run compress (from django_compressor) during deployment
-compressor = off
-
-; Path to map frontend servers to for your site media (includes both STATIC_URL
-; and MEDIA_URL; you must ensure they are under the same path)
-site_media_url = /site_media
-
-; The location of your manage.py. Gondor uses this as an entry point for
-; management commands. This is relative to the directory .gondor lives in.
-; managepy = manage.py
-
-; Gondor will use settings_module as DJANGO_SETTINGS_MODULE when it runs your
-; code. Commented out by default (means it will not be set).
-; settings_module = settings
+def cmd_init(args, env, config):
+    config_file = "gondor.yml"
+    ctx = dict(config_file=config_file)
+    if args.upgrade:
+        gondor_dir = utils.find_nearest(os.getcwd(), ".gondor")
+        legacy_config = ConfigParser.RawConfigParser()
+        legacy_config.read(os.path.abspath(os.path.join(gondor_dir, ".gondor", "config")))
+        ctx.update({
+            "site_key": config_value(legacy_config, "gondor", "site_key"),
+            "vcs": config_value(legacy_config, "gondor", "vcs"),
+            "requirements_file": config_value(legacy_config, "app", "requirements_file"),
+            "wsgi_entry_point": config_value(legacy_config, "app", "wsgi_entry_point"),
+            "framework": "django",
+            "gunicorn_worker_class": "eventlet",
+        })
+        on_deploy, static_urls = [], []
+        migrations = config_value(legacy_config, "app", "migrations")
+        if migrations:
+            migrations = migrations.strip().lower()
+            if migrations == "none":
+                on_deploy.append("    - manage.py syncdb --noinput")
+            if migrations == "nashvegas":
+                on_deploy.append("    - manage.py upgradedb --execute")
+            if migrations == "south":
+                on_deploy.append("    - manage.py syncdb --noinput")
+                on_deploy.append("    - manage.py migrate --noinput")
+        staticfiles = config_value(legacy_config, "app", "staticfiles")
+        if staticfiles:
+            staticfiles = staticfiles.strip().lower()
+            if staticfiles == "on":
+                on_deploy.append("    - manage.py collectstatic --noinput")
+        compressor = config_value(legacy_config, "app", "compressor")
+        if compressor:
+            compressor = compressor.strip().lower()
+            if compressor == "on":
+                on_deploy.append("    - manage.py compress")
+        site_media_url = config_value(legacy_config, "app", "site_media_url")
+        managepy = config_value(legacy_config, "app", "managepy")
+        if not managepy:
+            managepy = "manage.py"
+        if site_media_url:
+            static_urls.extend(["    - %s:" % site_media_url, "        root: site_media/"])
+        extra_config_file_data = """
+django:
+    # The location of your manage.py. Gondor uses this as an entry point for
+    # management commands. This path is relative to your project root (the
+    # directory %(config_file)s lives in.)
+    managepy: %(managepy)s
 """ % {
-    "site_key": site_key,
-    "vcs": vcs
+    "managepy": managepy,
+    "config_file": config_file,
 }
-        
-        out("Writing configuration (.gondor/config)... ")
-        with open(os.path.join(gondor_dir, "config"), "wb") as cf:
-            cf.write(config_file)
-        out("[ok]\n")
-         
-        out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
-        out("check .gondor/config (in this directory) for correct values for your\n")
-        out("application. Once you are ready, run:\n\n")
-        out("    gondor deploy primary %s\n" % {"git": "master", "hg": "default"}[vcs])
     else:
-        out("Detecting existing .gondor/config. Not overriding.\n")
+        site_key = args.site_key
+        if len(site_key) < 11:
+            error("The site key given is too short.\n")
+        ctx["wsgi_entry_point"] = "wsgi:application"
+        ctx["requirements_file"] = "requirements.txt"
+        on_deploy = []
+        static_urls = ["    - /site_media:", "        root: site_media/"]
+        try:
+            utils.find_nearest(os.getcwd(), ".git")
+        except OSError:
+            try:
+                utils.find_nearest(os.getcwd(), ".hg")
+            except OSError:
+                error("unable to find a supported version control directory. Looked for .git and .hg.\n")
+            else:
+                vcs = "hg"
+        else:
+            vcs = "git"
+        extra_config_file_data = ""
+        ctx.update({
+            "site_key": site_key,
+            "vcs": vcs,
+            "framework": "wsgi",
+            "requirements_file": "requirements.txt",
+            "wsgi_entry_point": "wsgi:application",
+            "gunicorn_worker_class": "sync",
+        })
+    if not on_deploy:
+        ctx["on_deploy"] = "# on_deploy:\n#     - manage.py syncdb --noinput\n#     - manage.py collectstatic --noinput"
+    else:
+        ctx["on_deploy"] = "\n".join(["on_deploy:"] + on_deploy)
+    ctx["static_urls"] = "\n".join(["static_urls:"] + static_urls)
+    if not os.path.exists(config_file):
+        config_file_data = """# The key associated to your site.
+key: %(site_key)s
+
+# Version control system used locally for your project.
+vcs: %(vcs)s
+
+# Framework to use on Gondor.
+framework: %(framework)s
+
+# This path is relative to your project root (the directory %(config_file)s lives in.)
+requirements_file: %(requirements_file)s
+
+# Commands to be executed during deployment. These can handle migrations or
+# moving static files into place. Accepts same parameters as gondor run.
+%(on_deploy)s
+
+# URLs which should be served by Gondor mapping to a filesystem location
+# relative to your writable storage area.
+%(static_urls)s
+
+wsgi:
+    # The WSGI entry point of your application in two parts separated by a
+    # colon. Example:
+    #
+    #     wsgi:application
+    #
+    # wsgi = the Python module which should be importable
+    # application = the callable in the Python module
+    entry_point: %(wsgi_entry_point)s
+    
+    # Options for gunicorn which runs your WSGI project.
+    gunicorn:
+        # The worker class used to run gunicorn (possible values include:
+        # sync, eventlet and gevent)
+        worker_class: %(gunicorn_worker_class)s
+""" % ctx
+        out("Writing configuration (%s)... " % config_file)
+        with open(config_file, "wb") as cf:
+            cf.write(config_file_data + extra_config_file_data)
+        out("[ok]\n")
+        if args.upgrade:
+            out("\nYour configuration file has been upgraded. New configuration is located\n")
+            out("in %s. Make sure you check this file before continuing then add and\n" % config_file)
+            out("commit it to your VCS.\n")
+        else:
+            out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
+            out("check %s (in this directory) for correct values for your\n" % config_file)
+            out("application. Once you are ready, run:\n\n")
+            out("    gondor deploy primary %s\n" % {"git": "master", "hg": "default"}[vcs])
+    else:
+        out("Detected existing %s. Not overriding.\n" % config_file)
 
 
 def cmd_create(args, env, config):
@@ -227,6 +320,7 @@ def cmd_deploy(args, env, config):
                 "commit": commit,
                 "tarball": tarball,
                 "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
+                "run_on_deploy": {True: "true", False: "false"}[not args.no_on_deploy],
                 "app": json.dumps(config["app"]),
             }
             handlers = [
@@ -367,75 +461,44 @@ def cmd_sqldump(args, env, config):
 def cmd_run(args, env, config):
     
     instance_label = args.instance_label[0]
-    command = args.command_[0]
-    cmdargs = args.cmdargs
-    params = {"cmdargs": cmdargs}
+    command = args.command_
     
-    if command == "createsuperuser":
-        try:
-            # Get a username
-            while 1:
-                username = raw_input("Username: ")
-                if not RE_VALID_USERNAME.match(username):
-                    sys.stderr.write("Error: That username is invalid. Use only letters, digits and underscores.\n")
-                    username = None
-                    continue
-                break
-            
-            # Get an email
-            while 1:
-                email = raw_input("Email address: ")
-                if not EMAIL_RE.search(email):
-                    sys.stderr.write("Error: That email address is invalid.\n")
-                    email = None
-                else:
-                    break
-            
-            # Get a password
-            while 1:
-                password = getpass.getpass()
-                password2 = getpass.getpass("Password (again): ")
-                if password != password2:
-                    sys.stderr.write("Error: Your passwords didn't match.\n")
-                    password = None
-                    continue
-                if password.strip() == "":
-                    sys.stderr.write("Error: Blank passwords aren't allowed.\n")
-                    password = None
-                    continue
-                break
-        except KeyboardInterrupt:
-            sys.stderr.write("\nOperation cancelled.\n")
-            sys.exit(1)
-        
-        params = {
-            "username": username,
-            "email": email,
-            "password": password,
-        }
-    
-    out("Executing... ")
+    if args.detached:
+        err("Spawning... ")
+    else:
+        err("Attaching... ")
     url = "%s/instance/run/" % config["gondor.endpoint"]
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
         "instance_label": instance_label,
         "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
-        "command": command,
-        "params": json.dumps(params),
+        "detached": {True: "true", False: "false"}[args.detached],
+        "command": " ".join(command),
         "app": json.dumps(config["app"]),
     }
     try:
+        params.update({
+            "tc": subprocess.check_output(["tput", "cols"]).strip(),
+            "tl": subprocess.check_output(["tput", "lines"]).strip(),
+        })
+    except (OSError, subprocess.CalledProcessError):
+        # if the above fails then no big deal; we just can't set correct
+        # terminal info so it will default some common values
+        pass
+    try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
+        err("[failed]\n")
         api_error(e)
     data = json.loads(response.read())
-    
+    endpoint = None if args.detached else tuple(data["endpoint"])
     if data["status"] == "error":
-        out("[error]\n")
+        err("[error]\n")
         error("%s\n" % data["message"])
     if data["status"] == "success":
         task_id = data["task"]
+        tc, tl = data["tc"], data["tl"]
         while True:
             params = {
                 "version": __version__,
@@ -447,30 +510,76 @@ def cmd_run(args, env, config):
             response = make_api_call(config, url, urllib.urlencode(params))
             data = json.loads(response.read())
             if data["status"] == "error":
-                out("[error]\n")
-                out("\nError: %s\n" % data["message"])
+                err("[error]\n")
+                error("%s\n" % data["message"])
             if data["status"] == "success":
                 if data["state"] == "finished":
-                    out("[ok]\n")
-                    d = zlib.decompressobj(16+zlib.MAX_WBITS)
-                    cs = 16 * 1024
-                    response = urllib2.urlopen(data["result"]["public_url"])
-                    while True:
-                        chunk = response.read(cs)
-                        if not chunk:
-                            break
-                        out(d.decompress(chunk))
+                    if args.detached:
+                        err("[ok]\n")
+                    # task finished; move on
                     break
                 elif data["state"] == "failed":
-                    out("[failed]\n")
-                    out("\n%s\n" % data["reason"])
-                    sys.exit(1)
+                    err("[failed]\n")
+                    error("%s\n" % data["reason"])
                 elif data["state"] == "locked":
-                    out("[locked]\n")
-                    out("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
+                    err("[locked]\n")
+                    err("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
                     sys.exit(1)
                 else:
                     time.sleep(2)
+        if args.detached:
+            err("Check your logs for output.\n")
+        else:
+            if sys.stdin.isatty():
+                os.system("stty -icanon -echo")
+            try:
+                # connect to process
+                for x in xrange(5):
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    ssl_kwargs = {
+                        "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
+                        "cert_reqs": ssl.CERT_REQUIRED,
+                        "ssl_version": ssl.PROTOCOL_SSLv3
+                    }
+                    sock = ssl.wrap_socket(sock, **ssl_kwargs)
+                    try:
+                        sock.connect(endpoint)
+                    except IOError, e:
+                        time.sleep(0.5)
+                        continue
+                    else:
+                        err("[ok]\n")
+                        if args.verbose > 1:
+                            err("Terminal set to %sx%s\n" % (tc, tl))
+                        break
+                else:
+                    err("[failed]\n")
+                    error("unable to attach to process (reason: %s)\n" % e)
+                while True:
+                    try:
+                        try:
+                            rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
+                        except select.error, e:
+                            if e.args[0] == errno.EINTR:
+                                continue
+                            raise
+                        if sock in rr:
+                            data = sock.recv(4096)
+                            if not data:
+                                break
+                            while data:
+                                n = os.write(sys.stdout.fileno(), data)
+                                data = data[n:]
+                        if sys.stdin in rr:
+                            data = os.read(sys.stdin.fileno(), 4096)
+                            while data:
+                                n = sock.send(data)
+                                data = data[n:]
+                    except KeyboardInterrupt:
+                        sock.sendall(chr(3))
+            finally:
+                if sys.stdin.isatty():
+                    os.system("stty icanon echo")
 
 
 def cmd_delete(args, env, config):
@@ -746,7 +855,8 @@ def main():
     
     # cmd: init
     parser_init = command_parsers.add_parser("init")
-    parser_init.add_argument("site_key", nargs=1)
+    parser_init.add_argument("--upgrade", action="store_true")
+    parser_init.add_argument("site_key", nargs="?")
     
     # cmd: create
     parser_create = command_parsers.add_parser("create")
@@ -755,6 +865,7 @@ def main():
     
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
+    parser_deploy.add_argument("--no-on-deploy", action="store_true")
     parser_deploy.add_argument("label", nargs=1)
     parser_deploy.add_argument("commit", nargs=1)
     
@@ -764,9 +875,12 @@ def main():
     
     # cmd: run
     parser_run = command_parsers.add_parser("run")
+    parser_run.add_argument("--detached",
+        action="store_true",
+        help="run process in detached (output is sent to logs)"
+    )
     parser_run.add_argument("instance_label", nargs=1)
-    parser_run.add_argument("command_", nargs=1)
-    parser_run.add_argument("cmdargs", nargs=argparse.REMAINDER)
+    parser_run.add_argument("command_", nargs=argparse.REMAINDER)
     
     # cmd: delete
     parser_delete = command_parsers.add_parser("delete")
@@ -812,12 +926,10 @@ def main():
     
     # config / env
     
-    global_config = ConfigParser.RawConfigParser()
-    global_config.read(os.path.expanduser("~/.gondor"))
+    global_config = load_config(args, "global")
     config = {
-        "auth.username": config_value(global_config, "auth", "username"),
-        "auth.password": config_value(global_config, "auth", "password"),
-        "auth.key": config_value(global_config, "auth", "key"),
+        "auth.username": global_config.get("auth", {}).get("username"),
+        "auth.key": global_config.get("auth", {}).get("key"),
     }
     env = {}
     
@@ -827,56 +939,46 @@ def main():
         out = globals()["out"]
     
     if args.command != "init":
-        gondor_dirname = ".gondor"
+        config_file = "gondor.yml"
         try:
-            env["project_root"] = utils.find_nearest(os.getcwd(), gondor_dirname)
+            env["project_root"] = utils.find_nearest(os.getcwd(), config_file)
         except OSError:
-            error("unable to find a .gondor directory.\n")
+            error("unable to find %s configuration file.\n" % config_file)
         
         if args.verbose > 1:
             out("Reading configuration... ")
         
-        def parse_config(name):
-            local_config = ConfigParser.RawConfigParser()
-            local_config.read(os.path.join(env["project_root"], gondor_dirname, name))
-            return local_config
-        local_config = parse_config("config")
+        local_config = load_config(args, "local")
         
         if args.verbose > 1:
             out("[ok]\n")
         
         config.update({
-            "auth.username": config_value(local_config, "auth", "username", config["auth.username"]),
-            "auth.password": config_value(local_config, "auth", "password", config["auth.password"]),
-            "auth.key": config_value(local_config, "auth", "key", config["auth.key"]),
-            "gondor.site_key": config_value(local_config, "gondor", "site_key", False),
-            "gondor.endpoint": config_value(local_config, "gondor", "endpoint", DEFAULT_ENDPOINT),
-            "gondor.vcs": local_config.get("gondor", "vcs"),
+            "auth.username": local_config.get("auth", {}).get("username", config["auth.username"]),
+            "auth.key": local_config.get("auth", {}).get("key", config["auth.key"]),
+            "gondor.site_key": local_config.get("key"),
+            "gondor.endpoint": local_config.get("endpoint", DEFAULT_ENDPOINT),
+            "gondor.vcs": local_config.get("vcs"),
             "app": {
-                "requirements_file": config_value(local_config, "app", "requirements_file"),
-                "wsgi_entry_point": config_value(local_config, "app", "wsgi_entry_point"),
-                "migrations": config_value(local_config, "app", "migrations"),
-                "staticfiles": config_value(local_config, "app", "staticfiles"),
-                "compressor": config_value(local_config, "app", "compressor"),
-                "site_media_url": config_value(local_config, "app", "site_media_url"),
-                "settings_module": config_value(local_config, "app", "settings_module"),
-                "managepy": config_value(local_config, "app", "managepy"),
-                "local_settings": config_value(local_config, "app", "local_settings"),
+                "requirements_file": local_config.get("requirements_file"),
+                "framework": local_config.get("framework"),
+                "on_deploy": local_config.get("on_deploy", []),
+                "static_urls": list(itertools.chain(*[
+                    [(u, c) for u, c in su.iteritems()]
+                    for su in local_config.get("static_urls", [])
+                ])),
+                "wsgi_entry_point": local_config.get("wsgi", {}).get("entry_point"),
+                "gunicorn_worker_class": local_config.get("wsgi", {}).get("gunicorn", {}).get("worker_class"),
+                "settings_module": local_config.get("django", {}).get("settings_module"),
+                "managepy": local_config.get("django", {}).get("managepy"),
+                "local_settings": local_config.get("django", {}).get("local_settings"),
             }
         })
         
-        if not config["gondor.site_key"]:
-            if args.verbose > 1:
-                out("Loading separate site_key... ")
-            try:
-                site_key_config = parse_config("site_key")
-                config["gondor.site_key"] = site_key_config.get("gondor", "site_key")
-            except ConfigParser.NoSectionError:
-                if args.verbose > 1:
-                    out("[failed]\n")
-                error("Unable to read gondor.site_key from .gondor/config or .gondor/site_key\n");
-            if args.verbose > 1:
-                out("[ok]\n")
+        # allow some values to be overriden from os.environ
+        config["auth.username"] = os.environ.get("GONDOR_AUTH_USERNAME", config["auth.username"])
+        config["auth.key"] = os.environ.get("GONDOR_AUTH_KEY", config["auth.key"])
+        config["gondor.site_key"] = os.environ.get("GONDOR_SITE_KEY", config["gondor.site_key"])
         
         try:
             vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]
@@ -890,7 +992,7 @@ def main():
     if (config["auth.username"] is None and (config["auth.password"] is None or config["auth.key"] is None)):
         message = "you must set your credentials in %s" % os.path.expanduser("~/.gondor")
         if "project_root" in env:
-            message += " or %s" % os.path.join(env["project_root"], ".gondor", "config")
+            message += " or %s" % os.path.join(env["project_root"], config_file)
         message += "\n"
         error(message)
     
@@ -908,3 +1010,4 @@ def main():
         "env": cmd_env,
         "env:set": cmd_env_set,
     }[args.command](args, env, config)
+    return 0
