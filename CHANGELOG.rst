@@ -6,6 +6,7 @@ CHANGELOG
 =====
 
  * fixed auth.password bugs (password is no longer used in 1.1+.)
+ * added check for site key existence
 
 1.1
 ===

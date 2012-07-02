@@ -995,6 +995,9 @@ def main():
             "the environment.\n" % os.path.expanduser("~/.gondor")
         )
     
+    if config["gondor.site_key"] is None:
+        error("no site key found in configuration or environment.\n")
+    
     {
         "init": cmd_init,
         "create": cmd_create,
