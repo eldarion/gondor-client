@@ -989,12 +989,11 @@ def main():
         except OSError:
             error("unable to find a %s directory.\n" % vcs_dir)
     
-    if (config["auth.username"] is None and (config["auth.password"] is None or config["auth.key"] is None)):
-        message = "you must set your credentials in %s" % os.path.expanduser("~/.gondor")
-        if "project_root" in env:
-            message += " or %s" % os.path.join(env["project_root"], config_file)
-        message += "\n"
-        error(message)
+    if config["auth.username"] is None or config["auth.key"] is None:
+        error(
+            "you must provide a username and API key in %s or set it in "
+            "the environment.\n" % os.path.expanduser("~/.gondor")
+        )
     
     {
         "init": cmd_init,
