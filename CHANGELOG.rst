@@ -2,8 +2,14 @@
 CHANGELOG
 =========
 
-1.1 (dev)
-=========
+1.1.1
+=====
+
+ * fixed auth.password bugs (password is no longer used in 1.1+.)
+ * added check for site key existence
+
+1.1
+===
 
  * added --upgrade to init to perform a configuration upgrade
  * changed configuration format from INI to YAML (~/.gondor can remain in INI format)
