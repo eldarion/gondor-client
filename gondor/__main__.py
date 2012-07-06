@@ -530,8 +530,15 @@ def cmd_run(args, env, config):
         if args.detached:
             err("Check your logs for output.\n")
         else:
-            if sys.stdin.isatty():
-                os.system("stty -icanon -echo")
+            def run_set_buffer(value):
+                cmd = ["stty", "-icanon", "-echo"] if value else ["stty", "icanon", "echo"]
+                if sys.stdin.isatty():
+                    try:
+                        subprocess.check_call(cmd)
+                    except (OSError, subprocess.CalledProcessError):
+                        if args.verbose > 1:
+                            out("Unable to run stty; using dumb terminal")
+            run_set_buffer(True)
             try:
                 # connect to process
                 for x in xrange(5):
@@ -578,8 +585,7 @@ def cmd_run(args, env, config):
                     except KeyboardInterrupt:
                         sock.sendall(chr(3))
             finally:
-                if sys.stdin.isatty():
-                    os.system("stty icanon echo")
+                run_set_buffer(False)
 
 
 def cmd_delete(args, env, config):
