@@ -56,7 +56,7 @@ def load_config(args, kind):
     try:
         return yaml.load(open(config_file, "rb"))
     except IOError:
-        error("unable to find configuration file (looked for %s)" % config_file)
+        error("unable to find configuration file (looked for %s)\n" % config_file)
     except yaml.parser.ParserError:
         if kind == "global":
             c = ConfigParser.RawConfigParser()
