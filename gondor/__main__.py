@@ -50,8 +50,8 @@ def config_value(config, section, key, default=None):
 
 def load_config(args, kind):
     config_file = {
-        "global": os.path.expanduser("~/.gondor"),
-        "local": os.path.abspath("./gondor.yml"),
+        "global": os.path.join(os.path.expanduser("~"), ".gondor"),
+        "local": os.path.abspath(os.path.join(os.curdir, "gondor.yml")),
     }[kind]
     try:
         return yaml.load(open(config_file, "rb"))
