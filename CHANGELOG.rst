@@ -2,6 +2,14 @@
 CHANGELOG
 =========
 
+1.1.2 (dev)
+===========
+
+ * ignore when stty fails to execute (usually means running on Windows)
+ * improved error message when configuration can not be found
+ * improved building of configuration paths to work better on Windows
+ * fixed bug introduced in 1.1.1 when running gondor init
+
 1.1.1
 =====
 
