@@ -996,15 +996,15 @@ def main():
             env["repo_root"] = utils.find_nearest(os.getcwd(), vcs_dir)
         except OSError:
             error("unable to find a %s directory.\n" % vcs_dir)
-    
-    if config["auth.username"] is None or config["auth.key"] is None:
-        error(
-            "you must provide a username and API key in %s or set it in "
-            "the environment.\n" % os.path.expanduser("~/.gondor")
-        )
-    
-    if config["gondor.site_key"] is None:
-        error("no site key found in configuration or environment.\n")
+        
+        if config["auth.username"] is None or config["auth.key"] is None:
+            error(
+                "you must provide a username and API key in %s or set it in "
+                "the environment.\n" % os.path.expanduser("~/.gondor")
+            )
+        
+        if config["gondor.site_key"] is None:
+            error("no site key found in configuration or environment.\n")
     
     {
         "init": cmd_init,
