@@ -2,8 +2,8 @@
 CHANGELOG
 =========
 
-1.1.2 (dev)
-===========
+1.1.2
+=====
 
  * ignore when stty fails to execute (usually means running on Windows)
  * improved error message when configuration can not be found
