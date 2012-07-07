@@ -481,8 +481,8 @@ def cmd_run(args, env, config):
     }
     try:
         params.update({
-            "tc": subprocess.check_output(["tput", "cols"]).strip(),
-            "tl": subprocess.check_output(["tput", "lines"]).strip(),
+            "tc": utils.check_output(["tput", "cols"]).strip(),
+            "tl": utils.check_output(["tput", "lines"]).strip(),
         })
     except (OSError, subprocess.CalledProcessError):
         # if the above fails then no big deal; we just can't set correct
