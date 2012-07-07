@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.1.3
+=====
+
+ * fixed gondor run on Python 2.6 with a ported subprocess.check_output
+
 1.1.2
 =====
 
