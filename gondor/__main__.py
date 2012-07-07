@@ -50,11 +50,13 @@ def config_value(config, section, key, default=None):
 
 def load_config(args, kind):
     config_file = {
-        "global": os.path.expanduser("~/.gondor"),
-        "local": os.path.abspath("./gondor.yml"),
+        "global": os.path.join(os.path.expanduser("~"), ".gondor"),
+        "local": os.path.abspath(os.path.join(os.curdir, "gondor.yml")),
     }[kind]
     try:
         return yaml.load(open(config_file, "rb"))
+    except IOError:
+        error("unable to find configuration file (looked for %s)\n" % config_file)
     except yaml.parser.ParserError:
         if kind == "global":
             c = ConfigParser.RawConfigParser()
@@ -479,8 +481,8 @@ def cmd_run(args, env, config):
     }
     try:
         params.update({
-            "tc": subprocess.check_output(["tput", "cols"]).strip(),
-            "tl": subprocess.check_output(["tput", "lines"]).strip(),
+            "tc": utils.check_output(["tput", "cols"]).strip(),
+            "tl": utils.check_output(["tput", "lines"]).strip(),
         })
     except (OSError, subprocess.CalledProcessError):
         # if the above fails then no big deal; we just can't set correct
@@ -530,8 +532,15 @@ def cmd_run(args, env, config):
         if args.detached:
             err("Check your logs for output.\n")
         else:
-            if sys.stdin.isatty():
-                os.system("stty -icanon -echo")
+            def run_set_buffer(value):
+                cmd = ["stty", "-icanon", "-echo"] if value else ["stty", "icanon", "echo"]
+                if sys.stdin.isatty():
+                    try:
+                        subprocess.check_call(cmd)
+                    except (OSError, subprocess.CalledProcessError):
+                        if args.verbose > 1:
+                            out("Unable to run stty; using dumb terminal")
+            run_set_buffer(True)
             try:
                 # connect to process
                 for x in xrange(5):
@@ -578,8 +587,7 @@ def cmd_run(args, env, config):
                     except KeyboardInterrupt:
                         sock.sendall(chr(3))
             finally:
-                if sys.stdin.isatty():
-                    os.system("stty icanon echo")
+                run_set_buffer(False)
 
 
 def cmd_delete(args, env, config):
@@ -988,15 +996,15 @@ def main():
             env["repo_root"] = utils.find_nearest(os.getcwd(), vcs_dir)
         except OSError:
             error("unable to find a %s directory.\n" % vcs_dir)
-    
-    if config["auth.username"] is None or config["auth.key"] is None:
-        error(
-            "you must provide a username and API key in %s or set it in "
-            "the environment.\n" % os.path.expanduser("~/.gondor")
-        )
-    
-    if config["gondor.site_key"] is None:
-        error("no site key found in configuration or environment.\n")
+        
+        if config["auth.username"] is None or config["auth.key"] is None:
+            error(
+                "you must provide a username and API key in %s or set it in "
+                "the environment.\n" % os.path.expanduser("~/.gondor")
+            )
+        
+        if config["gondor.site_key"] is None:
+            error("no site key found in configuration or environment.\n")
     
     {
         "init": cmd_init,
