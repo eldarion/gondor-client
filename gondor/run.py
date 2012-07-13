@@ -24,7 +24,7 @@ def unix_run_poll(sock):
                         n = os.write(sys.stdout.fileno(), data)
                         data = data[n:]
                 if sys.stdin in rr:
-                    data = os.read(stdin.fileno(), 4096)
+                    data = os.read(sys.stdin.fileno(), 4096)
                     while data:
                         n = sock.send(data)
                         data = data[n:]
