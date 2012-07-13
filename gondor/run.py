@@ -64,4 +64,4 @@ def win32_run_poll(sock):
                     break
                 sys.stdout.write(data)
     finally:
-        win32api.CloseHandle(se)
+        win32api.CloseHandle(sock_event)
