@@ -472,6 +472,8 @@ def cmd_run(args, env, config):
         "command": " ".join(command),
         "app": json.dumps(config["app"]),
     }
+    if sys.platform == "win32":
+        params["term"] = "win32"
     try:
         params.update({
             "tc": utils.check_output(["tput", "cols"]).strip(),
