@@ -51,9 +51,10 @@ def win32_run_poll(sock):
                     c = rs[0].Char
                     if c == "\x00":
                         kc = rs[0].VirtualKeyCode
-                        if kc == 38:
-                            continue
-                        else:
+                        c = {
+                            38: "\xe0",
+                        }.get(kc)
+                        if c is None:
                             continue
                     c = {
                         "\r": "\n",
