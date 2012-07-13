@@ -25,6 +25,7 @@ def unix_run_poll(sock):
                         data = data[n:]
                 if sys.stdin in rr:
                     data = os.read(sys.stdin.fileno(), 4096)
+                    print repr(data)
                     while data:
                         n = sock.send(data)
                         data = data[n:]
@@ -56,6 +57,7 @@ def win32_run_poll(sock):
                             continue
                     c = {
                         "\r": "\n",
+                        "\x08": "\x7f",
                     }.get(c, c)
                     sock.send(c)
             if handles[i] == sock_event:
