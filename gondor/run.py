@@ -34,11 +34,11 @@ def unix_run_poll(sock):
 
 def win32_run_poll(sock):
     import win32api, win32console, win32event, win32file
-    se = win32event.CreateEvent(None, True, False, None)
-    win32file.WSAEventSelect(sock, se, win32file.FD_CLOSE | win32file.FD_READ)
+    sock_event = win32event.CreateEvent(None, True, False, None)
+    win32file.WSAEventSelect(sock.fileno(), sock_event, win32file.FD_CLOSE | win32file.FD_READ)
     stdin = win32api.GetStdHandle(win32api.STD_INPUT_HANDLE)
     console = win32console.GetStdHandle(win32api.STD_INPUT_HANDLE)
-    handles = [stdin, se]
+    handles = [stdin, sock_event]
     try:
         while True:
             i = win32event.WaitForMultipleObjects(handles, 0, 1000)
@@ -58,7 +58,7 @@ def win32_run_poll(sock):
                         "\r": "\n",
                     }.get(c, c)
                     sock.send(c)
-            if handles[i] == sock:
+            if handles[i] == sock_event:
                 data = sock.recv(4096)
                 if not data:
                     break
