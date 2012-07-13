@@ -63,5 +63,6 @@ def win32_run_poll(sock):
                 if not data:
                     break
                 sys.stdout.write(data)
+                win32event.ResetEvent(sock_event)
     finally:
         win32api.CloseHandle(sock_event)
