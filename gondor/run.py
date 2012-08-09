@@ -25,7 +25,6 @@ def unix_run_poll(sock):
                         data = data[n:]
                 if sys.stdin in rr:
                     data = os.read(sys.stdin.fileno(), 4096)
-                    print repr(data)
                     while data:
                         n = sock.send(data)
                         data = data[n:]
@@ -47,19 +46,10 @@ def win32_run_poll(sock):
                 continue
             if handles[i] == stdin:
                 rs = console.ReadConsoleInput(1)
-                if rs[0].KeyDown:
+                if rs[0].EventType == win32console.KEY_EVENT and rs[0].KeyDown:
                     c = rs[0].Char
                     if c == "\x00":
-                        kc = rs[0].VirtualKeyCode
-                        c = {
-                            38: "\xe0",
-                        }.get(kc)
-                        if c is None:
-                            continue
-                    c = {
-                        "\r": "\n",
-                        "\x08": "\x7f",
-                    }.get(c, c)
+                        continue
                     sock.send(c)
             if handles[i] == sock_event:
                 data = sock.recv(4096)
