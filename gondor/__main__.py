@@ -945,6 +945,7 @@ def main():
                 "settings_module": local_config.get("django", {}).get("settings_module"),
                 "managepy": local_config.get("django", {}).get("managepy"),
                 "local_settings": local_config.get("django", {}).get("local_settings"),
+                "env": local_config.get("env", {}),
             }
         })
         
