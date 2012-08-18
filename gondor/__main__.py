@@ -1,11 +1,9 @@
 import argparse
 import ConfigParser
-import errno
 import gzip
 import itertools
 import os
 import re
-import select
 import socket
 import ssl
 import subprocess
@@ -29,13 +27,8 @@ from gondor import __version__
 from gondor import http, utils
 from gondor.api import make_api_call
 from gondor.progressbar import ProgressBar
-
-
-out = utils.out
-err = utils.err
-error = utils.error
-warn = utils.warn
-api_error = utils.api_error
+from gondor.run import unix_run_poll, win32_run_poll
+from gondor.utils import out, err, error, warn, api_error
 
 
 DEFAULT_ENDPOINT = "https://api.gondor.io"
@@ -479,6 +472,8 @@ def cmd_run(args, env, config):
         "command": " ".join(command),
         "app": json.dumps(config["app"]),
     }
+    if sys.platform == "win32":
+        params["term"] = "win32"
     try:
         params.update({
             "tc": utils.check_output(["tput", "cols"]).strip(),
@@ -532,62 +527,32 @@ def cmd_run(args, env, config):
         if args.detached:
             err("Check your logs for output.\n")
         else:
-            def run_set_buffer(value):
-                cmd = ["stty", "-icanon", "-echo"] if value else ["stty", "icanon", "echo"]
-                if sys.stdin.isatty():
-                    try:
-                        subprocess.check_call(cmd)
-                    except (OSError, subprocess.CalledProcessError):
-                        if args.verbose > 1:
-                            out("Unable to run stty; using dumb terminal")
-            run_set_buffer(True)
-            try:
-                # connect to process
-                for x in xrange(5):
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    ssl_kwargs = {
-                        "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
-                        "cert_reqs": ssl.CERT_REQUIRED,
-                        "ssl_version": ssl.PROTOCOL_SSLv3
-                    }
-                    sock = ssl.wrap_socket(sock, **ssl_kwargs)
-                    try:
-                        sock.connect(endpoint)
-                    except IOError, e:
-                        time.sleep(0.5)
-                        continue
-                    else:
-                        err("[ok]\n")
-                        if args.verbose > 1:
-                            err("Terminal set to %sx%s\n" % (tc, tl))
-                        break
+            # connect to process
+            for x in xrange(5):
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                ssl_kwargs = {
+                    "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
+                    "cert_reqs": ssl.CERT_REQUIRED,
+                    "ssl_version": ssl.PROTOCOL_SSLv3
+                }
+                sock = ssl.wrap_socket(sock, **ssl_kwargs)
+                try:
+                    sock.connect(endpoint)
+                except IOError, e:
+                    time.sleep(0.5)
+                    continue
                 else:
-                    err("[failed]\n")
-                    error("unable to attach to process (reason: %s)\n" % e)
-                while True:
-                    try:
-                        try:
-                            rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
-                        except select.error, e:
-                            if e.args[0] == errno.EINTR:
-                                continue
-                            raise
-                        if sock in rr:
-                            data = sock.recv(4096)
-                            if not data:
-                                break
-                            while data:
-                                n = os.write(sys.stdout.fileno(), data)
-                                data = data[n:]
-                        if sys.stdin in rr:
-                            data = os.read(sys.stdin.fileno(), 4096)
-                            while data:
-                                n = sock.send(data)
-                                data = data[n:]
-                    except KeyboardInterrupt:
-                        sock.sendall(chr(3))
-            finally:
-                run_set_buffer(False)
+                    err("[ok]\n")
+                    if args.verbose > 1:
+                        err("Terminal set to %sx%s\n" % (tc, tl))
+                    break
+            else:
+                err("[failed]\n")
+                error("unable to attach to process (reason: %s)\n" % e)
+            if sys.platform == "win32":
+                win32_run_poll(sock)
+            else:
+                unix_run_poll(sock)
 
 
 def cmd_delete(args, env, config):
@@ -980,6 +945,7 @@ def main():
                 "settings_module": local_config.get("django", {}).get("settings_module"),
                 "managepy": local_config.get("django", {}).get("managepy"),
                 "local_settings": local_config.get("django", {}).get("local_settings"),
+                "env": local_config.get("env", {}),
             }
         })
         

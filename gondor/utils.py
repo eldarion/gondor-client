@@ -1,3 +1,4 @@
+import contextlib
 import os
 import subprocess
 import sys
@@ -45,6 +46,11 @@ def error(msg, exit=True):
 
 def warn(msg):
     err("WARNING: %s" % msg)
+
+
+def confirm(msg):
+    answer = raw_input("%s [y/n]: ")
+    return answer == "y"
 
 
 def api_error(e):
@@ -121,3 +127,17 @@ def check_output(*popenargs, **kwargs):
             cmd = popenargs[0]
         raise subprocess.CalledProcessError(retcode, cmd, output=output)
     return output
+
+
+@contextlib.contextmanager
+def stdin_buffer():
+    import termios, tty
+    if sys.stdin.isatty():
+        before = termios.tcgetattr(sys.stdin)
+        tty.setcbreak(sys.stdin.fileno())
+        try:
+            yield
+        finally:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, before)
+    else:
+        yield
