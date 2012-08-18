@@ -3,7 +3,7 @@ import os
 import select
 import sys
 
-from gondor.utils import stdin_buffer
+from gondor.utils import stdin_buffer, confirm
 
 
 def unix_run_poll(sock):
@@ -33,6 +33,9 @@ def unix_run_poll(sock):
 
 
 def win32_run_poll(sock):
+    sys.stderr.write("WARNING: Windows support for this command is broken.\n")
+    if not confirm("Would you like to run it anyways?"):
+        sys.exit(0)
     import win32api, win32console, win32event, win32file
     sock_event = win32event.CreateEvent(None, True, False, None)
     win32file.WSAEventSelect(sock.fileno(), sock_event, win32file.FD_CLOSE | win32file.FD_READ)

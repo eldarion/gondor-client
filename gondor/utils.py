@@ -48,6 +48,11 @@ def warn(msg):
     err("WARNING: %s" % msg)
 
 
+def confirm(msg):
+    answer = raw_input("%s [y/n]: ")
+    return answer == "y"
+
+
 def api_error(e):
     data = e.read()
     try:
