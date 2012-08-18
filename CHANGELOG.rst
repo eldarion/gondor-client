@@ -2,6 +2,12 @@
 CHANGELOG
 =========
 
+1.1.4
+=====
+
+ * added very basic and likely not working support for run on Windows
+ * added env section to gondor.yml
+
 1.1.3
 =====
 
