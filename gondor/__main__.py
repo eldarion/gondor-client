@@ -474,15 +474,16 @@ def cmd_run(args, env, config):
     }
     if sys.platform == "win32":
         params["term"] = "win32"
-    try:
-        params.update({
-            "tc": utils.check_output(["tput", "cols"]).strip(),
-            "tl": utils.check_output(["tput", "lines"]).strip(),
-        })
-    except (OSError, subprocess.CalledProcessError):
-        # if the above fails then no big deal; we just can't set correct
-        # terminal info so it will default some common values
-        pass
+    if "TERM" in os.environ:
+        try:
+            params.update({
+                "tc": utils.check_output(["tput", "cols"]).strip(),
+                "tl": utils.check_output(["tput", "lines"]).strip(),
+            })
+        except (OSError, subprocess.CalledProcessError):
+            # if the above fails then no big deal; we just can't set correct
+            # terminal info so it will default some common values
+            pass
     try:
         response = make_api_call(config, url, urllib.urlencode(params))
     except urllib2.HTTPError, e:
