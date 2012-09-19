@@ -63,7 +63,7 @@ def win32_run_poll(sock):
                     data = data[n:]
             remote = False
         else:
-            i = win32.WaitForSingleObject(hin, 0, 1000)
+            i = win32.WaitForSingleObject(hin, 1000)
             if i == WAIT_TIMEOUT:
                 remote = True
                 continue
