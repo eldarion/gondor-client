@@ -35,6 +35,7 @@ def unix_run_poll(sock):
 def win32_run_poll(sock):
     import ctypes
     win32 = ctypes.windll.kernel32
+    WAIT_TIMEOUT = 0x00000102L
     hin = win32.GetStdHandle(-10)
     mode = ctypes.c_int(0)
     win32.GetConsoleMode(hin, ctypes.byref(mode))
@@ -60,6 +61,7 @@ def win32_run_poll(sock):
                 while data:
                     n = os.write(sys.stdout.fileno(), data)
                     data = data[n:]
+            remote = False
         else:
             i = win32.WaitForSingleObject(hin, 0, 1000)
             if i == WAIT_TIMEOUT:
