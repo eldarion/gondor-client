@@ -2,6 +2,12 @@
 CHANGELOG
 =========
 
+1.1.5
+=====
+
+ * fixed bug on 2.6 when check_output process failed
+ * improved gondor run to only call tput when TERM is in environment
+
 1.1.4
 =====
 
