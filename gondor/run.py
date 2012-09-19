@@ -39,8 +39,16 @@ def win32_run_poll(sock):
     import win32api, win32console, win32event, win32file
     sock_event = win32event.CreateEvent(None, True, False, None)
     win32file.WSAEventSelect(sock.fileno(), sock_event, win32file.FD_CLOSE | win32file.FD_READ)
+    import ctypes
+    hin = win32.GetStdHandle(-10)
+    mode = ctypes.c_int(0)
+    win32.GetConsoleMode(hin, ctypes.byref(mode))
+    mode = mode.value
+    mode = mode & (~0x0001) # disable processed input
+    mode = mode & (~0x0002) # disable line input
+    mode = mode & (~0x0004) # disable echo input
+    win32.SetConsoleMode(hin, mode)
     stdin = win32api.GetStdHandle(win32api.STD_INPUT_HANDLE)
-    console = win32console.GetStdHandle(win32api.STD_INPUT_HANDLE)
     handles = [stdin, sock_event]
     try:
         while True:
@@ -48,12 +56,10 @@ def win32_run_poll(sock):
             if i == win32event.WAIT_TIMEOUT:
                 continue
             if handles[i] == stdin:
-                rs = console.ReadConsoleInput(1)
-                if rs[0].EventType == win32console.KEY_EVENT and rs[0].KeyDown:
-                    c = rs[0].Char
-                    if c == "\x00":
-                        continue
-                    sock.send(c)
+                buf = ctypes.create_string_buffer(1024)
+                bytes_read = ctypes.c_int(0)
+                win32.ReadFile(hin, ctypes.byref(buf), 1024, ctypes.byref(bytes_read), None)
+                sock.send(buf.value)
             if handles[i] == sock_event:
                 data = sock.recv(4096)
                 if not data:
