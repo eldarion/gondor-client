@@ -33,10 +33,6 @@ def unix_run_poll(sock):
 
 
 def win32_run_poll(sock):
-    sys.stderr.write("WARNING: Windows support for this command is broken.\n")
-    if not confirm("Would you like to run it anyways?"):
-        sys.exit(0)
-    import win32api, win32console, win32event, win32file
     import ctypes
     win32 = ctypes.windll.kernel32
     hin = win32.GetStdHandle(-10)
@@ -47,7 +43,6 @@ def win32_run_poll(sock):
     mode = mode & (~0x0002) # disable line input
     mode = mode & (~0x0004) # disable echo input
     win32.SetConsoleMode(hin, mode)
-    handles = [stdin, sock_event]
     while True:
         try:
             rr, rw, er = select.select([sock], [], [], 0.1)
