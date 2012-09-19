@@ -40,6 +40,7 @@ def win32_run_poll(sock):
     sock_event = win32event.CreateEvent(None, True, False, None)
     win32file.WSAEventSelect(sock.fileno(), sock_event, win32file.FD_CLOSE | win32file.FD_READ)
     import ctypes
+    win32 = ctypes.windll.kernel32
     hin = win32.GetStdHandle(-10)
     mode = ctypes.c_int(0)
     win32.GetConsoleMode(hin, ctypes.byref(mode))
