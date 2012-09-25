@@ -26,6 +26,7 @@ import yaml
 from gondor import __version__
 from gondor import http, utils
 from gondor.api import make_api_call
+from gondor.prettytable import PrettyTable
 from gondor.progressbar import ProgressBar
 from gondor.run import unix_run_poll, win32_run_poll
 from gondor.utils import out, err, error, warn, api_error
@@ -606,13 +607,18 @@ def cmd_list(args, env, config):
     if data["status"] == "success":
         instances = sorted(data["instances"], key=lambda v: v["label"])
         if instances:
+            table = PrettyTable(["label", "kind", "URL", "deployed", "reqs/s", "avg time/req"])
+            table.align = "l"
             for instance in instances:
-                out("%s [%s] %s %s\n" % (
+                table.add_row([
                     instance["label"],
                     instance["kind"],
                     instance["url"],
-                    instance["last_deployment"]["sha"][:8]
-                ))
+                    instance["last_deployment"]["sha"][:8],
+                    instance["avg_requests_per_second"],
+                    instance["avg_request_duration"],
+                ])
+            print table
         else:
             out("No instances found.\n")
     else:
