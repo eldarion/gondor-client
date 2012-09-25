@@ -607,7 +607,7 @@ def cmd_list(args, env, config):
     if data["status"] == "success":
         instances = sorted(data["instances"], key=lambda v: v["label"])
         if instances:
-            table = PrettyTable(["label", "kind", "URL", "deployed", "reqs/s", "avg time/req"])
+            table = PrettyTable(["label", "kind", "URL", "deployed", "reqs/sec", "avg time/req"])
             table.align = "l"
             for instance in instances:
                 table.add_row([
