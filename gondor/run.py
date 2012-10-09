@@ -40,7 +40,7 @@ def win32_run_poll(sock):
     FD_READ = 0x01
     FD_CLOSE = 0x20
     sev = winsock.WSACreateEvent()
-    winsock.WSAEventSelect(sock.fileno(), sev, FD_READ|FD_CLOSE)
+    winsock.WSAEventSelect(sock.fileno(), sev, FD_READ | FD_CLOSE)
     hin = win32.GetStdHandle(-10)
     mode = ctypes.c_int(0)
     win32.GetConsoleMode(hin, ctypes.byref(mode))
@@ -51,26 +51,18 @@ def win32_run_poll(sock):
     win32.SetConsoleMode(hin, mode)
     handles = [hin, sev]
     handles = (ctypes.c_long*len(handles))(*handles)
-    def o(data):
-        sys.stdout.write("%s\n" % data)
-        sys.stdout.flush()
     while True:
         i = win32.WaitForMultipleObjects(len(handles), handles, False, 1000)
         if i == WAIT_TIMEOUT:
-            o("timeout")
             continue
         if handles[i] == hin:
-            o("hin")
             buf = ctypes.create_string_buffer(1024)
             bytes_read = ctypes.c_int(0)
             win32.ReadFile(hin, ctypes.byref(buf), 1024, ctypes.byref(bytes_read), None)
-            o("hin = %d" % len(buf.value))
             sock.sendall(buf.value)
         if handles[i] == sev:
-            o("sev")
             win32.ResetEvent(sev)
             data = sock.recv(4096)
-            o("sev = %d" % len(data))
             if not data:
                 break
             sys.stdout.write(data)
