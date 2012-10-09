@@ -59,7 +59,7 @@ def win32_run_poll(sock):
             buf = ctypes.create_string_buffer(1024)
             bytes_read = ctypes.c_int(0)
             win32.ReadFile(hin, ctypes.byref(buf), 1024, ctypes.byref(bytes_read), None)
-            sock.send(buf.value)
+            sock.sendall(buf.value)
         if handles[i] == sev:
             data = sock.recv(4096)
             if not data:
