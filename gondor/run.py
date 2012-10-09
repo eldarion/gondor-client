@@ -35,7 +35,12 @@ def unix_run_poll(sock):
 def win32_run_poll(sock):
     import ctypes
     win32 = ctypes.windll.kernel32
+    winsock = ctypes.windll.Ws2_32
     WAIT_TIMEOUT = 0x00000102L
+    FD_READ = 0x0001
+    FD_CLOSE = 0x0020
+    sev = winsock.WSACreateEvent()
+    winsock.WSAEventSelect(sock.fileno(), sev, FD_READ|FD_CLOSE)
     hin = win32.GetStdHandle(-10)
     mode = ctypes.c_int(0)
     win32.GetConsoleMode(hin, ctypes.byref(mode))
@@ -44,31 +49,22 @@ def win32_run_poll(sock):
     mode = mode & (~0x0002) # disable line input
     mode = mode & (~0x0004) # disable echo input
     win32.SetConsoleMode(hin, mode)
-    remote = True
+    handles = [hin, sev]
+    handles = (ctypes.c_long*len(handles))(*handles)
     while True:
-        if remote:
-            try:
-                rr, rw, er = select.select([sock], [], [], 0.1)
-            except select.error, e:
-                if e.args[0] == errno.EINTR:
-                    remote = False
-                    continue
-                raise
-            if sock in rr:
-                data = sock.recv(4096)
-                if not data:
-                    break
-                while data:
-                    n = os.write(sys.stdout.fileno(), data)
-                    data = data[n:]
-            remote = False
-        else:
-            i = win32.WaitForSingleObject(hin, 1000)
-            if i == WAIT_TIMEOUT:
-                remote = True
-                continue
+        i = win32.WaitForMultipleObjects(len(handles), handles, False, 1000)
+        if i == WAIT_TIMEOUT:
+            continue
+        if handles[i] == hin:
             buf = ctypes.create_string_buffer(1024)
             bytes_read = ctypes.c_int(0)
             win32.ReadFile(hin, ctypes.byref(buf), 1024, ctypes.byref(bytes_read), None)
             sock.send(buf.value)
-            remote = True
+        if handles[i] == sev:
+            data = sock.recv(4096)
+            if not data:
+                break
+            while data:
+                n = os.write(sys.stdout.fileno(), data)
+                data = data[n:]
+            win32.ResetEvent(sev)
