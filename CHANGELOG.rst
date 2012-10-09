@@ -7,8 +7,8 @@ CHANGELOG
 
  * fixed bug on 2.6 when check_output process failed
  * improved gondor run to only call tput when TERM is in environment
- * made gondor list output to be much more readable
- * added requests per second and average request duration output to gondor list
+ * gondor list output is now more readable
+ * added requests per second and average request duration to gondor list
  * gondor run is now usable on Windows
 
 1.1.4
