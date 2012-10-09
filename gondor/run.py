@@ -1,6 +1,7 @@
 import errno
 import os
 import select
+import ssl
 import sys
 
 from gondor.utils import stdin_buffer, confirm
