@@ -37,8 +37,8 @@ def win32_run_poll(sock):
     win32 = ctypes.windll.kernel32
     winsock = ctypes.windll.Ws2_32
     WAIT_TIMEOUT = 0x00000102L
-    FD_READ = 0x0001
-    FD_CLOSE = 0x0020
+    FD_READ = 0x01
+    FD_CLOSE = 0x20
     sev = winsock.WSACreateEvent()
     winsock.WSAEventSelect(sock.fileno(), sev, FD_READ|FD_CLOSE)
     hin = win32.GetStdHandle(-10)
@@ -68,10 +68,10 @@ def win32_run_poll(sock):
             sock.sendall(buf.value)
         if handles[i] == sev:
             o("sev")
+            win32.ResetEvent(sev)
             data = sock.recv(4096)
             o("sev = %d" % len(data))
             if not data:
                 break
             sys.stdout.write(data)
             sys.stdout.flush()
-            win32.ResetEvent(sev)
