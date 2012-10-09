@@ -54,14 +54,24 @@ def win32_run_poll(sock):
     while True:
         i = win32.WaitForMultipleObjects(len(handles), handles, False, 1000)
         if i == WAIT_TIMEOUT:
+            sys.stdout.write("timeout")
+            sys.stdout.flush()
             continue
         if handles[i] == hin:
+            sys.stdout.write("hin")
+            sys.stdout.flush()
             buf = ctypes.create_string_buffer(1024)
             bytes_read = ctypes.c_int(0)
             win32.ReadFile(hin, ctypes.byref(buf), 1024, ctypes.byref(bytes_read), None)
+            sys.stdout.write("hin = %d" % len(buf.value))
+            sys.stdout.flush()
             sock.sendall(buf.value)
         if handles[i] == sev:
+            sys.stdout.write("sev")
+            sys.stdout.flush()
             data = sock.recv(4096)
+            sys.stdout.write("sev = %d" % len(data))
+            sys.stdout.flush()
             if not data:
                 break
             sys.stdout.write(data)
