@@ -51,6 +51,7 @@ def win32_run_poll(sock):
     win32.SetConsoleMode(hin, mode)
     handles = [hin, sev]
     handles = (ctypes.c_long*len(handles))(*handles)
+    sock.settimeout(0.1)
     while True:
         i = win32.WaitForMultipleObjects(len(handles), handles, False, 1000)
         if i == WAIT_TIMEOUT:
@@ -62,7 +63,11 @@ def win32_run_poll(sock):
             sock.sendall(buf.value)
         if handles[i] == sev:
             win32.ResetEvent(sev)
-            data = sock.recv(4096)
+            try:
+                data = sock.recv(4096)
+            except ssl.SSLError, e:
+                if e.message == "The read operation timed out":
+                    continue
             if not data:
                 break
             sys.stdout.write(data)
