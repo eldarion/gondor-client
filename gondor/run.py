@@ -1,6 +1,7 @@
 import errno
 import os
 import select
+import ssl
 import sys
 
 from gondor.utils import stdin_buffer, confirm
@@ -33,32 +34,42 @@ def unix_run_poll(sock):
 
 
 def win32_run_poll(sock):
-    sys.stderr.write("WARNING: Windows support for this command is broken.\n")
-    if not confirm("Would you like to run it anyways?"):
-        sys.exit(0)
-    import win32api, win32console, win32event, win32file
-    sock_event = win32event.CreateEvent(None, True, False, None)
-    win32file.WSAEventSelect(sock.fileno(), sock_event, win32file.FD_CLOSE | win32file.FD_READ)
-    stdin = win32api.GetStdHandle(win32api.STD_INPUT_HANDLE)
-    console = win32console.GetStdHandle(win32api.STD_INPUT_HANDLE)
-    handles = [stdin, sock_event]
-    try:
-        while True:
-            i = win32event.WaitForMultipleObjects(handles, 0, 1000)
-            if i == win32event.WAIT_TIMEOUT:
-                continue
-            if handles[i] == stdin:
-                rs = console.ReadConsoleInput(1)
-                if rs[0].EventType == win32console.KEY_EVENT and rs[0].KeyDown:
-                    c = rs[0].Char
-                    if c == "\x00":
-                        continue
-                    sock.send(c)
-            if handles[i] == sock_event:
+    import ctypes
+    win32 = ctypes.windll.kernel32
+    winsock = ctypes.windll.Ws2_32
+    WAIT_TIMEOUT = 0x00000102L
+    FD_READ = 0x01
+    FD_CLOSE = 0x20
+    sev = winsock.WSACreateEvent()
+    winsock.WSAEventSelect(sock.fileno(), sev, FD_READ | FD_CLOSE)
+    hin = win32.GetStdHandle(-10)
+    mode = ctypes.c_int(0)
+    win32.GetConsoleMode(hin, ctypes.byref(mode))
+    mode = mode.value
+    mode = mode & (~0x0001) # disable processed input
+    mode = mode & (~0x0002) # disable line input
+    mode = mode & (~0x0004) # disable echo input
+    win32.SetConsoleMode(hin, mode)
+    handles = [hin, sev]
+    handles = (ctypes.c_long*len(handles))(*handles)
+    sock.settimeout(0.1)
+    while True:
+        i = win32.WaitForMultipleObjects(len(handles), handles, False, 1000)
+        if i == WAIT_TIMEOUT:
+            continue
+        if handles[i] == hin:
+            buf = ctypes.create_string_buffer(1024)
+            bytes_read = ctypes.c_int(0)
+            win32.ReadFile(hin, ctypes.byref(buf), 1024, ctypes.byref(bytes_read), None)
+            sock.sendall(buf.value)
+        if handles[i] == sev:
+            win32.ResetEvent(sev)
+            try:
                 data = sock.recv(4096)
-                if not data:
-                    break
-                sys.stdout.write(data)
-                win32event.ResetEvent(sock_event)
-    finally:
-        win32api.CloseHandle(sock_event)
+            except ssl.SSLError, e:
+                if e.message == "The read operation timed out":
+                    continue
+            if not data:
+                break
+            sys.stdout.write(data)
+            sys.stdout.flush()
