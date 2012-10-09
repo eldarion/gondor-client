@@ -52,6 +52,7 @@ def win32_run_poll(sock):
     handles = [hin, sev]
     handles = (ctypes.c_long*len(handles))(*handles)
     def outit(data):
+        data += "\n"
         while data:
             n = os.write(sys.stdout.fileno(), data)
             data = data[n:]
@@ -70,4 +71,7 @@ def win32_run_poll(sock):
             outit("sock: %r" % data)
             if not data:
                 break
+            while data:
+                n = os.write(sys.stdout.fileno(), data)
+                data = data[n:]
             win32.ResetEvent(sev)
