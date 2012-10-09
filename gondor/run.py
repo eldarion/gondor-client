@@ -64,7 +64,6 @@ def win32_run_poll(sock):
             data = sock.recv(4096)
             if not data:
                 break
-            while data:
-                n = os.write(sys.stdout.fileno(), data)
-                data = data[n:]
+            sys.stdout.write(data)
+            sys.stdout.flush()
             win32.ResetEvent(sev)
