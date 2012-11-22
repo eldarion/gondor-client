@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.1.6
+=====
+
+ * fixed bug mercurial commit identification (use hg identify)
+
 1.1.5
 =====
 
