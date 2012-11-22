@@ -270,16 +270,8 @@ def cmd_deploy(args, env, config):
                 hg = utils.find_command("hg")
             except utils.BadCommand, e:
                 error(e.args[0])
-            branches_stdout = utils.run_proc([hg, "branches"])[1]
-            tags_stdout = utils.run_proc([hg, "tags"])[1]
-            refs = {}
-            for line in branches_stdout.splitlines() + tags_stdout.splitlines():
-                m = re.search(r"([\w\d\.-]+)\s*([\d]+):([\w]+)$", line)
-                if m:
-                    refs[m.group(1)] = m.group(3)
-            try:
-                sha = refs[commit]
-            except KeyError:
+            check, sha = utils.run_proc([hg, "identify", "--id", "-r", commit])
+            if check != 0:
                 error("could not map '%s' to a SHA\n" % commit)
             tar_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar" % (label, sha)))
             cmd = [hg, "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
