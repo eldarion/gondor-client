@@ -4,7 +4,7 @@ import select
 import ssl
 import sys
 
-from gondor.utils import stdin_buffer, confirm
+from .utils import stdin_buffer, confirm
 
 
 def unix_run_poll(sock):
@@ -13,7 +13,7 @@ def unix_run_poll(sock):
             try:
                 try:
                     rr, rw, er = select.select([sock, sys.stdin], [], [], 0.1)
-                except select.error, e:
+                except select.error as e:
                     if e.args[0] == errno.EINTR:
                         continue
                     raise
@@ -37,7 +37,7 @@ def win32_run_poll(sock):
     import ctypes
     win32 = ctypes.windll.kernel32
     winsock = ctypes.windll.Ws2_32
-    WAIT_TIMEOUT = 0x00000102L
+    WAIT_TIMEOUT = 0x00000102
     FD_READ = 0x01
     FD_CLOSE = 0x20
     sev = winsock.WSACreateEvent()
@@ -66,7 +66,7 @@ def win32_run_poll(sock):
             win32.ResetEvent(sev)
             try:
                 data = sock.recv(4096)
-            except ssl.SSLError, e:
+            except ssl.SSLError as e:
                 if e.message == "The read operation timed out":
                     continue
             if not data:

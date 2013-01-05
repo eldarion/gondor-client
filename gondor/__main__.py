@@ -1,5 +1,4 @@
 import argparse
-import ConfigParser
 import gzip
 import itertools
 import os
@@ -10,26 +9,36 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib
-import urllib2
 import webbrowser
 import zlib
+
+import six
+from six.moves import configparser, input
+
+if six.PY3:
+    from urllib.error import HTTPError, URLError
+    from urllib.parse import urlencode
+    from urllib.request import urlopen
+else:
+    from urllib2 import urlopen, HTTPError, URLError
+    from urllib import urlencode
 
 try:
     import simplejson as json
 except ImportError:
     import json
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "yaml-3.10.zip")))
+vs = "py3" if six.PY3 else "py2"
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "yaml-{}-3.10.zip".format(vs))))
 import yaml
 
-from gondor import __version__
-from gondor import http, utils
-from gondor.api import make_api_call
-from gondor.prettytable import PrettyTable
-from gondor.progressbar import ProgressBar
-from gondor.run import unix_run_poll, win32_run_poll
-from gondor.utils import out, err, error, warn, api_error
+from . import __version__
+from . import http, utils
+from .api import make_api_call
+from .prettytable import PrettyTable
+from .progressbar import ProgressBar
+from .run import unix_run_poll, win32_run_poll
+from .utils import out, err, error, warn, api_error
 
 
 DEFAULT_ENDPOINT = "https://api.gondor.io"
@@ -38,7 +47,7 @@ DEFAULT_ENDPOINT = "https://api.gondor.io"
 def config_value(config, section, key, default=None):
     try:
         return config.get(section, key)
-    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+    except (configparser.NoOptionError, configparser.NoSectionError):
         return default
 
 
@@ -53,7 +62,7 @@ def load_config(args, kind):
         error("unable to find configuration file (looked for %s)\n" % config_file)
     except yaml.parser.ParserError:
         if kind == "global":
-            c = ConfigParser.RawConfigParser()
+            c = configparser.RawConfigParser()
             try:
                 c.read(config_file)
             except Exception:
@@ -76,7 +85,7 @@ def cmd_init(args, env, config):
     ctx = dict(config_file=config_file)
     if args.upgrade:
         gondor_dir = utils.find_nearest(os.getcwd(), ".gondor")
-        legacy_config = ConfigParser.RawConfigParser()
+        legacy_config = configparser.RawConfigParser()
         legacy_config.read(os.path.abspath(os.path.join(gondor_dir, ".gondor", "config")))
         ctx.update({
             "site_key": config_value(legacy_config, "gondor", "site_key"),
@@ -228,8 +237,8 @@ def cmd_create(args, env, config):
         "project_root": os.path.basename(env["project_root"]),
     }
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
     data = json.loads(response.read())
     if data["status"] == "error":
@@ -256,7 +265,7 @@ def cmd_deploy(args, env, config):
         if config["gondor.vcs"] == "git":
             try:
                 git = utils.find_command("git")
-            except utils.BadCommand, e:
+            except utils.BadCommand as e:
                 error(e.args[0])
             check, sha = utils.run_proc([git, "rev-parse", commit])
             if check != 0:
@@ -268,7 +277,7 @@ def cmd_deploy(args, env, config):
         elif config["gondor.vcs"] == "hg":
             try:
                 hg = utils.find_command("hg")
-            except utils.BadCommand, e:
+            except utils.BadCommand as e:
                 error(e.args[0])
             check, sha = utils.run_proc([hg, "identify", "--id", "-r", commit])
             if check != 0:
@@ -321,7 +330,7 @@ def cmd_deploy(args, env, config):
             except KeyboardInterrupt:
                 out("\nCanceling uploading... [ok]\n")
                 sys.exit(1)
-            except urllib2.HTTPError, e:
+            except HTTPError as e:
                 out("\n")
                 api_error(e)
             else:
@@ -354,8 +363,8 @@ def cmd_deploy(args, env, config):
             }
             url = "%s/task/status/" % config["gondor.endpoint"]
             try:
-                response = make_api_call(config, url, urllib.urlencode(params))
-            except urllib2.URLError:
+                response = make_api_call(config, url, urlencode(params))
+            except URLError:
                 # @@@ add max retries
                 continue
             data = json.loads(response.read())
@@ -393,8 +402,8 @@ def cmd_sqldump(args, env, config):
         "label": label,
     }
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
     data = json.loads(response.read())
     
@@ -411,8 +420,8 @@ def cmd_sqldump(args, env, config):
             }
             url = "%s/task/status/" % config["gondor.endpoint"]
             try:
-                response = make_api_call(config, url, urllib.urlencode(params))
-            except urllib2.URLError:
+                response = make_api_call(config, url, urlencode(params))
+            except URLError:
                 # @@@ add max retries
                 continue
             data = json.loads(response.read())
@@ -438,7 +447,7 @@ def cmd_sqldump(args, env, config):
     
     d = zlib.decompressobj(16+zlib.MAX_WBITS)
     cs = 16 * 1024
-    response = urllib2.urlopen(data["result"]["public_url"])
+    response = urlopen(data["result"]["public_url"])
     while True:
         chunk = response.read(cs)
         if not chunk:
@@ -478,8 +487,8 @@ def cmd_run(args, env, config):
             # terminal info so it will default some common values
             pass
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         err("[failed]\n")
         api_error(e)
     data = json.loads(response.read())
@@ -498,7 +507,7 @@ def cmd_run(args, env, config):
                 "task_id": task_id,
             }
             url = "%s/task/status/" % config["gondor.endpoint"]
-            response = make_api_call(config, url, urllib.urlencode(params))
+            response = make_api_call(config, url, urlencode(params))
             data = json.loads(response.read())
             if data["status"] == "error":
                 err("[error]\n")
@@ -522,7 +531,7 @@ def cmd_run(args, env, config):
             err("Check your logs for output.\n")
         else:
             # connect to process
-            for x in xrange(5):
+            for x in range(5):
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 ssl_kwargs = {
                     "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
@@ -532,7 +541,7 @@ def cmd_run(args, env, config):
                 sock = ssl.wrap_socket(sock, **ssl_kwargs)
                 try:
                     sock.connect(endpoint)
-                except IOError, e:
+                except IOError as e:
                     time.sleep(0.5)
                     continue
                 else:
@@ -555,7 +564,7 @@ def cmd_delete(args, env, config):
     
     text = "ARE YOU SURE YOU WANT TO DELETE THIS INSTANCE? [Y/N] "
     out(text)
-    user_input = raw_input()
+    user_input = input()
     if user_input != "Y":
         out("Exiting without deleting the instance.\n")
         sys.exit(0)
@@ -568,8 +577,8 @@ def cmd_delete(args, env, config):
         "instance_label": instance_label,
     }
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
     data = json.loads(response.read())
     if data["status"] == "error":
@@ -591,8 +600,8 @@ def cmd_list(args, env, config):
         "site_key": config["gondor.site_key"],
     }
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
     data = json.loads(response.read())
     
@@ -610,7 +619,7 @@ def cmd_list(args, env, config):
                     instance["avg_requests_per_second"],
                     instance["avg_request_duration"],
                 ])
-            print table
+            print(table)
         else:
             out("No instances found.\n")
     else:
@@ -625,7 +634,7 @@ def cmd_manage(args, env, config):
     
     if operation == "database:load" and not args.yes:
         out("This command will destroy all data in the database for %s\n" % instance_label)
-        answer = raw_input("Are you sure you want to continue? [y/n]: ")
+        answer = input("Are you sure you want to continue? [y/n]: ")
         if answer != "y":
             sys.exit(1)
     
@@ -667,12 +676,12 @@ def cmd_manage(args, env, config):
             ])
         else:
             error("%s takes one argument.\n" % operation)
-    params = params.items()
+    params = list(six.iteritems(params))
     for oparg in opargs:
         params.append(("arg", oparg))
     try:
         response = make_api_call(config, url, params, extra_handlers=handlers)
-    except urllib2.HTTPError, e:
+    except HTTPError as e:
         api_error(e)
     out("\nRunning... ")
     data = json.loads(response.read())
@@ -691,7 +700,7 @@ def cmd_manage(args, env, config):
                     "task_id": task_id,
                 }
                 url = "%s/task/status/" % config["gondor.endpoint"]
-                response = make_api_call(config, url, urllib.urlencode(params))
+                response = make_api_call(config, url, urlencode(params))
                 data = json.loads(response.read())
                 if data["status"] == "error":
                     out("[error]\n")
@@ -721,10 +730,10 @@ def cmd_open(args, env, config):
         "site_key": config["gondor.site_key"],
         "label": args.label[0],
     }
-    url += "?%s" % urllib.urlencode(params)
+    url += "?%s" % urlencode(params)
     try:
         response = make_api_call(config, url)
-    except urllib2.HTTPError, e:
+    except HTTPError as e:
         api_error(e)
     data = json.loads(response.read())
     
@@ -744,10 +753,10 @@ def cmd_dashboard(args, env, config):
         params["label"] = args.label
     else:
         url = "%s/site/detail/" % config["gondor.endpoint"]
-    url += "?%s" % urllib.urlencode(params)
+    url += "?%s" % urlencode(params)
     try:
         response = make_api_call(config, url)
-    except urllib2.HTTPError, e:
+    except HTTPError as e:
         api_error(e)
     data = json.loads(response.read())
     
@@ -775,15 +784,15 @@ def cmd_env(args, env, config):
         else: # get var(s) on instance
             params.append(("label", bits[0]))
             params.extend([("key", k) for k in bits[1:]])
-    url += "?%s" % urllib.urlencode(params)
+    url += "?%s" % urlencode(params)
     try:
         response = make_api_call(config, url)
-    except urllib2.HTTPError, e:
+    except HTTPError as e:
         api_error(e)
     data = json.loads(response.read())
     if data["status"] == "success":
         if data["env"]:
-            for k, v in data["env"].iteritems():
+            for k, v in six.iteritems(data["env"]):
                 out("%s=%s\n" % (k, v))
     else:
         error("%s\n" % data["message"])
@@ -804,12 +813,12 @@ def cmd_env_set(args, env, config):
             params.append(("label", bits[0]))
             params.extend([("variable", v) for v in bits[1:]])
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
     data = json.loads(response.read())
     if data["status"] == "success":
-        for k, v in data["env"].iteritems():
+        for k, v in six.iteritems(data["env"]):
             if v is None:
                 out("removed %s\n" % k)
             else:
@@ -936,7 +945,7 @@ def main():
                 "framework": local_config.get("framework"),
                 "on_deploy": local_config.get("on_deploy", []),
                 "static_urls": list(itertools.chain(*[
-                    [(u, c) for u, c in su.iteritems()]
+                    [(u, c) for u, c in six.iteritems(su)]
                     for su in local_config.get("static_urls", [])
                 ])),
                 "wsgi_entry_point": local_config.get("wsgi", {}).get("entry_point"),

@@ -3,6 +3,9 @@ import os
 import subprocess
 import sys
 
+import six
+from six.moves import xrange, input
+
 try:
     import simplejson as json
 except ImportError:
@@ -49,7 +52,7 @@ def warn(msg):
 
 
 def confirm(msg):
-    answer = raw_input("%s [y/n]: ")
+    answer = input("%s [y/n]: ")
     return answer == "y"
 
 

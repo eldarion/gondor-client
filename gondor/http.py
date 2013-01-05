@@ -1,15 +1,21 @@
-import httplib
-import mimetools
+import email.generator
+import io
 import os
 import re
 import socket
 import ssl
 import sys
 import time
-import urllib
-import urllib2
 
-from cStringIO import StringIO
+import six
+from six.moves import http_client
+
+if six.PY3:
+    from urllib.parse import urlencode
+    from urllib.request import BaseHandler, HTTPHandler, HTTPSHandler
+else:
+    from urllib import urlencode
+    from urllib2 import BaseHandler, HTTPHandler, HTTPSHandler
 
 ucb = None # upload callback
 ubs = None # upload bytes sent
@@ -82,7 +88,7 @@ def match_hostname(cert, hostname):
             "subjectAltName fields were found")
 
 
-class HTTPSConnection(httplib.HTTPConnection):
+class HTTPSConnection(http_client.HTTPConnection):
     """
     This class allows communication via SSL.
     Ported from Python 3.2. Does not follow Eldarion code-style.
@@ -92,7 +98,7 @@ class HTTPSConnection(httplib.HTTPConnection):
     
     def __init__(self, host, port=None, key_file=None, cert_file=None,
                  strict=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
-        httplib.HTTPConnection.__init__(self, host, port, strict, timeout)
+        http_client.HTTPConnection.__init__(self, host, port, strict, timeout)
         self.key_file = key_file
         self.cert_file = cert_file
     
@@ -113,7 +119,8 @@ class HTTPSConnection(httplib.HTTPConnection):
             raise
 
 
-class HTTPSHandler(urllib2.HTTPSHandler):
+class GondorHTTPSHandler(HTTPSHandler):
+    
     def https_open(self, request):
         return self.do_open(HTTPSConnection, request)
 
@@ -121,10 +128,10 @@ class HTTPSHandler(urllib2.HTTPSHandler):
 def UploadProgressHandler(pb, ssl=False):
     if ssl:
         conn_class = HTTPSConnection
-        handler_class = urllib2.HTTPSHandler
+        handler_class = HTTPSHandler
     else:
-        conn_class = httplib.HTTPConnection
-        handler_class = urllib2.HTTPHandler
+        conn_class = http_client.HTTPConnection
+        handler_class = HTTPHandler
     class HTTPConnection(conn_class):
         def send(self, buf):
             global ubt, ubs
@@ -149,7 +156,7 @@ def UploadProgressHandler(pb, ssl=False):
             sys.stdout.write("%s\r" % pb)
             sys.stdout.flush()
     class _UploadProgressHandler(handler_class):
-        handler_order = urllib2.HTTPHandler.handler_order - 9 # run second
+        handler_order = HTTPHandler.handler_order - 9 # run second
         if ssl:
             def https_open(self, request):
                 return self.do_open(HTTPConnection, request)
@@ -159,8 +166,8 @@ def UploadProgressHandler(pb, ssl=False):
     return _UploadProgressHandler
 
 
-class MultipartPostHandler(urllib2.BaseHandler):
-    handler_order = urllib2.HTTPHandler.handler_order - 10 # run first
+class MultipartPostHandler(BaseHandler):
+    handler_order = HTTPHandler.handler_order - 10 # run first
     
     def http_request(self, request):
         data = request.get_data()
@@ -168,7 +175,7 @@ class MultipartPostHandler(urllib2.BaseHandler):
             params, files = [], []
             try:
                 if isinstance(data, dict):
-                    data = data.iteritems()
+                    data = six.iteritems(data)
                 for key, value in data:
                     if hasattr(value, "read"):
                         files.append((key, value))
@@ -177,7 +184,7 @@ class MultipartPostHandler(urllib2.BaseHandler):
             except TypeError:
                 raise TypeError("not a valid non-string sequence or mapping object")
             if not files:
-                data = urllib.urlencode(params, 1)
+                data = urlencode(params, 1)
             else:
                 boundary, data = self.multipart_encode(params, files)
                 request.add_unredirected_header("Content-Type", "multipart/form-data; boundary=%s" % boundary)
@@ -188,9 +195,9 @@ class MultipartPostHandler(urllib2.BaseHandler):
     
     def multipart_encode(self, params, files, boundary=None, buf=None):
         if boundary is None:
-            boundary = mimetools.choose_boundary()
+            boundary = email.generator._make_boundary()
         if buf is None:
-            buf = StringIO()
+            buf = io.StringIO()
         for key, value in params:
             buf.write("--%s\r\n" % boundary)
             buf.write('Content-Disposition: form-data; name="%s"' % key)
