@@ -8,6 +8,7 @@ CHANGELOG
  * added support for Python 3.3
  * dropped support for Python 2.6 (supported versions are 2.7 and 3.3)
  * added runtime config option for running different Python versions on Gondor
+ * fixed newline output in gondor manage
 
 1.1.6
 =====
