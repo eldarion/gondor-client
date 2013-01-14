@@ -126,14 +126,13 @@ def cmd_init(args, env, config):
 django:
     # The location of your manage.py. Gondor uses this as an entry point for
     # management commands. This path is relative to your project root (the
-    # directory %(config_file)s lives in.)
-    managepy: %(managepy)s
-""" % {
-    "managepy": managepy,
-    "config_file": config_file,
-}
+    # directory {config_file} lives in.)
+    managepy: {managepy}
+""".format(managepy=managepy, config_file=config_file)
     else:
         site_key = args.site_key
+        if site_key is None:
+            error("You must provide a site key.\n")
         if len(site_key) < 11:
             error("The site key given is too short.\n")
         ctx["wsgi_entry_point"] = "wsgi:application"
@@ -167,24 +166,24 @@ django:
     ctx["static_urls"] = "\n".join(["static_urls:"] + static_urls)
     if not os.path.exists(config_file):
         config_file_data = """# The key associated to your site.
-key: %(site_key)s
+key: {site_key}
 
 # Version control system used locally for your project.
-vcs: %(vcs)s
+vcs: {vcs}
 
 # Framework to use on Gondor.
-framework: %(framework)s
+framework: {framework}
 
-# This path is relative to your project root (the directory %(config_file)s lives in.)
-requirements_file: %(requirements_file)s
+# This path is relative to your project root (the directory {config_file} lives in.)
+requirements_file: {requirements_file}
 
 # Commands to be executed during deployment. These can handle migrations or
 # moving static files into place. Accepts same parameters as gondor run.
-%(on_deploy)s
+{on_deploy}
 
 # URLs which should be served by Gondor mapping to a filesystem location
 # relative to your writable storage area.
-%(static_urls)s
+{static_urls}
 
 wsgi:
     # The WSGI entry point of your application in two parts separated by a
@@ -194,29 +193,29 @@ wsgi:
     #
     # wsgi = the Python module which should be importable
     # application = the callable in the Python module
-    entry_point: %(wsgi_entry_point)s
+    entry_point: {wsgi_entry_point}
     
     # Options for gunicorn which runs your WSGI project.
     gunicorn:
         # The worker class used to run gunicorn (possible values include:
         # sync, eventlet and gevent)
-        worker_class: %(gunicorn_worker_class)s
-""" % ctx
-        out("Writing configuration (%s)... " % config_file)
+        worker_class: {gunicorn_worker_class}
+""".format(**ctx)
+        out("Writing configuration ({})... ".format(config_file))
         with open(config_file, "wb") as cf:
-            cf.write(config_file_data + extra_config_file_data)
+            cf.write((config_file_data + extra_config_file_data).encode("utf-8"))
         out("[ok]\n")
         if args.upgrade:
             out("\nYour configuration file has been upgraded. New configuration is located\n")
-            out("in %s. Make sure you check this file before continuing then add and\n" % config_file)
+            out("in {}. Make sure you check this file before continuing then add and\n".format(config_file))
             out("commit it to your VCS.\n")
         else:
             out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
-            out("check %s (in this directory) for correct values for your\n" % config_file)
+            out("check {} (in this directory) for correct values for your\n".format(config_file))
             out("application. Once you are ready, run:\n\n")
-            out("    gondor deploy primary %s\n" % {"git": "master", "hg": "default"}[vcs])
+            out("    gondor deploy primary {}\n".format({"git": "master", "hg": "default"}[vcs]))
     else:
-        out("Detected existing %s. Not overriding.\n" % config_file)
+        out("Detected existing {}. Not overriding.\n".format(config_file))
 
 
 def cmd_create(args, env, config):
