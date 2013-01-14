@@ -136,10 +136,9 @@ def UploadProgressHandler(pb, ssl=False):
             prev = 0
             while ubs < send_length:
                 percentage = int(round((float(ubs) / ubt) * 100))
-                pb.updateAmount(percentage)
+                pb.update(percentage)
                 if percentage != prev:
-                    sys.stdout.write("{}\r".format(pb))
-                    sys.stdout.flush()
+                    pb.display()
                     prev = percentage
                 t1 = time.time()
                 conn_class.send(self, buf[ubs:ubs+cs])
@@ -147,9 +146,8 @@ def UploadProgressHandler(pb, ssl=False):
                 t2 = time.time()
             # once we are done uploading the file set the progress bar to
             # 100% as sometimes it never gets full
-            pb.updateAmount(100)
-            sys.stdout.write("{}\r".format(pb))
-            sys.stdout.flush()
+            pb.update(100)
+            pb.display()
     class _UploadProgressHandler(handler_class):
         handler_order = HTTPHandler.handler_order - 9 # run second
         if ssl:
