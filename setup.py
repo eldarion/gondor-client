@@ -5,13 +5,6 @@ from setuptools import setup, find_packages
 from gondor import __version__
 
 
-install_requires = [
-    "six==1.2.0",
-]
-if sys.version_info < (2, 7):
-    install_requires.append("argparse==1.1")
-
-
 setup(
     name = "gondor",
     version = __version__,
@@ -33,7 +26,9 @@ setup(
             "gondor = gondor.__main__:main",
         ],
     },
-    install_requires = install_requires,
+    install_requires = [
+        "six==1.2.0",
+    ],
     classifiers = [
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
