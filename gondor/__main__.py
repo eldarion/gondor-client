@@ -171,7 +171,7 @@ key: {site_key}
 # Version control system used locally for your project.
 vcs: {vcs}
 
-# The runtime Gondor should use.
+# Python version to run on Gondor.
 runtime: {runtime}
 
 # This path is relative to your project root (the directory {config_file} lives in.)
