@@ -649,6 +649,7 @@ def cmd_manage(args, env, config):
     handlers = [
         http.MultipartPostHandler,
     ]
+    pb = None
     if operation in ["database:load"]:
         if opargs:
             filename = os.path.abspath(os.path.expanduser(opargs[0]))
@@ -684,7 +685,9 @@ def cmd_manage(args, env, config):
         response = make_api_call(config, url, params, extra_handlers=handlers)
     except HTTPError as e:
         api_error(e)
-    out("\nRunning... ")
+    if pb is not None:
+        out("\n")
+    out("Running... ")
     data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "error":
