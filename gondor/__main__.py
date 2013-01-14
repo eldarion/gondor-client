@@ -240,7 +240,7 @@ def cmd_create(args, env, config):
         response = make_api_call(config, url, urlencode(params))
     except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     if data["status"] == "error":
         message = "error"
     elif data["status"] == "success":
@@ -268,6 +268,7 @@ def cmd_deploy(args, env, config):
             except utils.BadCommand as e:
                 error(e.args[0])
             check, sha = utils.run_proc([git, "rev-parse", commit])
+            sha = sha.decode("ascii")
             if check != 0:
                 error("could not map '%s' to a SHA\n" % commit)
             if commit == "HEAD":
@@ -280,6 +281,7 @@ def cmd_deploy(args, env, config):
             except utils.BadCommand as e:
                 error(e.args[0])
             check, sha = utils.run_proc([hg, "identify", "--id", "-r", commit])
+            sha = sha.decode("ascii")
             if check != 0:
                 error("could not map '%s' to a SHA\n" % commit)
             tar_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar" % (label, sha)))
@@ -335,7 +337,7 @@ def cmd_deploy(args, env, config):
                 api_error(e)
             else:
                 out("\n")
-                data = json.loads(response.read())
+                data = json.loads(response.read().decode("utf-8"))
     
     finally:
         if tar_path and os.path.exists(tar_path):
@@ -367,7 +369,7 @@ def cmd_deploy(args, env, config):
             except URLError:
                 # @@@ add max retries
                 continue
-            data = json.loads(response.read())
+            data = json.loads(response.read().decode("utf-8"))
             if data["status"] == "error":
                 out("[error]\n")
                 error("%s\n" % data["message"])
@@ -405,7 +407,7 @@ def cmd_sqldump(args, env, config):
         response = make_api_call(config, url, urlencode(params))
     except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "error":
         error("%s\n" % data["message"])
@@ -424,7 +426,7 @@ def cmd_sqldump(args, env, config):
             except URLError:
                 # @@@ add max retries
                 continue
-            data = json.loads(response.read())
+            data = json.loads(response.read().decode("utf-8"))
             if data["status"] == "error":
                 err("[error]\n")
                 error("%s\n" % data["message"])
@@ -452,7 +454,7 @@ def cmd_sqldump(args, env, config):
         chunk = response.read(cs)
         if not chunk:
             break
-        out(d.decompress(chunk))
+        out(d.decompress(chunk).decode("utf-8"))
 
 
 def cmd_run(args, env, config):
@@ -491,7 +493,7 @@ def cmd_run(args, env, config):
     except HTTPError as e:
         err("[failed]\n")
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     endpoint = None if args.detached else tuple(data["endpoint"])
     if data["status"] == "error":
         err("[error]\n")
@@ -508,7 +510,7 @@ def cmd_run(args, env, config):
             }
             url = "%s/task/status/" % config["gondor.endpoint"]
             response = make_api_call(config, url, urlencode(params))
-            data = json.loads(response.read())
+            data = json.loads(response.read().decode("utf-8"))
             if data["status"] == "error":
                 err("[error]\n")
                 error("%s\n" % data["message"])
@@ -580,7 +582,7 @@ def cmd_delete(args, env, config):
         response = make_api_call(config, url, urlencode(params))
     except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     if data["status"] == "error":
         message = "error"
     elif data["status"] == "success":
@@ -603,7 +605,7 @@ def cmd_list(args, env, config):
         response = make_api_call(config, url, urlencode(params))
     except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "success":
         instances = sorted(data["instances"], key=lambda v: v["label"])
@@ -684,7 +686,7 @@ def cmd_manage(args, env, config):
     except HTTPError as e:
         api_error(e)
     out("\nRunning... ")
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "error":
         out("[error]\n")
@@ -701,7 +703,7 @@ def cmd_manage(args, env, config):
                 }
                 url = "%s/task/status/" % config["gondor.endpoint"]
                 response = make_api_call(config, url, urlencode(params))
-                data = json.loads(response.read())
+                data = json.loads(response.read().decode("utf-8"))
                 if data["status"] == "error":
                     out("[error]\n")
                     out("\nError: %s\n" % data["message"])
@@ -735,7 +737,7 @@ def cmd_open(args, env, config):
         response = make_api_call(config, url)
     except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "success":
         webbrowser.open(data["object"]["url"])
@@ -758,7 +760,7 @@ def cmd_dashboard(args, env, config):
         response = make_api_call(config, url)
     except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "success":
         webbrowser.open(data["object"]["dashboard_url"])
@@ -789,7 +791,7 @@ def cmd_env(args, env, config):
         response = make_api_call(config, url)
     except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     if data["status"] == "success":
         if data["env"]:
             for k, v in six.iteritems(data["env"]):
@@ -816,7 +818,7 @@ def cmd_env_set(args, env, config):
         response = make_api_call(config, url, urlencode(params))
     except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     if data["status"] == "success":
         for k, v in six.iteritems(data["env"]):
             if v is None:
@@ -904,6 +906,10 @@ def main():
     parser_env_set.add_argument("bits", nargs="*")
     
     args = parser.parse_args()
+    
+    if args.command is None:
+        parser.print_usage()
+        sys.exit(1)
     
     # config / env
     

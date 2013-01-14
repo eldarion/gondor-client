@@ -187,7 +187,7 @@ class MultipartPostHandler(BaseHandler):
                 data = urlencode(params, 1)
             else:
                 boundary, data = self.multipart_encode(params, files)
-                request.add_unredirected_header("Content-Type", "multipart/form-data; boundary=%s" % boundary)
+                request.add_unredirected_header("Content-Type", b'multipart/form-data; boundary="'+ boundary + b'"')
             request.add_data(data)
         return request
     
@@ -196,18 +196,27 @@ class MultipartPostHandler(BaseHandler):
     def multipart_encode(self, params, files, boundary=None, buf=None):
         if boundary is None:
             boundary = email.generator._make_boundary()
+            boundary = boundary.encode("latin-1")
         if buf is None:
-            buf = io.StringIO()
+            buf = io.BytesIO()
         for key, value in params:
-            buf.write("--%s\r\n" % boundary)
-            buf.write('Content-Disposition: form-data; name="%s"' % key)
-            buf.write("\r\n\r\n" + value + "\r\n")
+            if isinstance(key, six.string_types):
+                key = key.encode("latin-1")
+            if isinstance(value, six.string_types):
+                value = value.encode("latin-1")
+            buf.write(b"--" + boundary + b"\r\n")
+            buf.write(b'Content-Disposition: form-data; name="' + key + b'"')
+            buf.write(b"\r\n\r\n" + value + b"\r\n")
         for key, fd in files:
-            filename = fd.name.split("/")[-1]
-            buf.write("--%s\r\n" % boundary)
-            buf.write('Content-Disposition: form-data; name="%s"; filename="%s"\r\n' % (key, filename))
-            buf.write("Content-Type: application/octet-stream\r\n")
-            buf.write("\r\n" + fd.read() + "\r\n")
-        buf.write("--" + boundary + "--\r\n\r\n")
+            if isinstance(key, six.string_types):
+                key = key.encode("latin-1")
+            filename = fd.name.split("/")[-1].encode("latin-1")
+            buf.write(b"--" + boundary + b"\r\n")
+            buf.write(b'Content-Disposition: form-data; name="' + key + b'"; filename="' + filename + b'"\r\n')
+            buf.write(b"Content-Type: application/octet-stream")
+            buf.write(b"\r\n\r\n")
+            buf.write(fd.read())
+            buf.write(b"\r\n")
+        buf.write(b"--" + boundary + b"--\r\n\r\n")
         buf = buf.getvalue()
         return boundary, buf
