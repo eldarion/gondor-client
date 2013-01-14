@@ -177,7 +177,7 @@ class MultipartPostHandler(BaseHandler):
             except TypeError:
                 raise TypeError("not a valid non-string sequence or mapping object")
             if not files:
-                data = urlencode(params, 1)
+                data = urlencode(params, 1).encode("utf-8")
             else:
                 boundary, data = self.multipart_encode(params, files)
                 request.add_unredirected_header("Content-Type", b'multipart/form-data; boundary="'+ boundary + b'"')
