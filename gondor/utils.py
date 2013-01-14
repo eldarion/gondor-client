@@ -42,13 +42,13 @@ def err(msg):
 
 
 def error(msg, exit=True):
-    err("ERROR: %s" % msg)
+    err("ERROR: {}".format(msg))
     if exit:
         sys.exit(1)
 
 
 def warn(msg):
-    err("WARNING: %s" % msg)
+    err("WARNING: {}".format(msg))
 
 
 def confirm(msg):
@@ -65,10 +65,10 @@ def api_error(e):
     else:
         message = data["message"]
     if "\n" in message:
-        output = "\n\n%s" % message
+        output = "\n\n{}".format(message)
     else:
         output = message
-    out("API returned an error [%d]: %s\n" % (e.code, message))
+    out("API returned an error [{}]: {}\n".format(e.code, message))
     sys.exit(1)
 
 
@@ -103,7 +103,7 @@ def find_command(cmd, paths=None, pathext=None):
                 return cmd_path_ext
         if os.path.isfile(cmd_path):
             return cmd_path
-    raise BadCommand("Cannot find command %r" % cmd)
+    raise BadCommand("Cannot find command {!r}".format(cmd))
 
 
 def get_pathext(default_pathext=None):

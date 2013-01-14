@@ -76,16 +76,11 @@ def match_hostname(cert, hostname):
                         return
                     dnsnames.append(value)
     if len(dnsnames) > 1:
-        raise CertificateError("hostname %r "
-            "doesn't match either of %s"
-            % (hostname, ', '.join(map(repr, dnsnames))))
+        raise CertificateError("hostname {!r} doesn't match either of {}".format(hostname, ", ".join(map(repr, dnsnames))))
     elif len(dnsnames) == 1:
-        raise CertificateError("hostname %r "
-            "doesn't match %r"
-            % (hostname, dnsnames[0]))
+        raise CertificateError("hostname {!r} doesn't match {!r}".format(hostname, dnsnames[0]))
     else:
-        raise CertificateError("no appropriate commonName or "
-            "subjectAltName fields were found")
+        raise CertificateError("no appropriate commonName or subjectAltName fields were found")
 
 
 class HTTPSConnection(http_client.HTTPConnection):
@@ -143,7 +138,7 @@ def UploadProgressHandler(pb, ssl=False):
                 percentage = int(round((float(ubs) / ubt) * 100))
                 pb.updateAmount(percentage)
                 if percentage != prev:
-                    sys.stdout.write("%s\r" % pb)
+                    sys.stdout.write("{}\r".format(pb))
                     sys.stdout.flush()
                     prev = percentage
                 t1 = time.time()
@@ -153,7 +148,7 @@ def UploadProgressHandler(pb, ssl=False):
             # once we are done uploading the file set the progress bar to
             # 100% as sometimes it never gets full
             pb.updateAmount(100)
-            sys.stdout.write("%s\r" % pb)
+            sys.stdout.write("{}\r".format(pb))
             sys.stdout.flush()
     class _UploadProgressHandler(handler_class):
         handler_order = HTTPHandler.handler_order - 9 # run second
