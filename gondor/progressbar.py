@@ -1,43 +1,68 @@
-"""
-Found this neat progress bar code on http://code.activestate.com/recipes/168639-progress-bar-class/
-"""
+import sys
 
-class ProgressBar:
-    def __init__(self, minValue = 0, maxValue = 10, totalWidth=12):
-        self.progBar = "[]"   # This holds the progress bar string
-        self.min = minValue
-        self.max = maxValue
-        self.span = maxValue - minValue
-        self.width = totalWidth
-        self.amount = 0       # When amount == max, we are 100% done 
-        self.updateAmount(0)  # Build progress bar string
+
+class ProgressBar(object):
+    """
+    Creates a text-based progress bar. Call the object with the `print'
+    command to see the progress bar, which looks something like this:
     
-    def updateAmount(self, newAmount = 0):
-        if newAmount < self.min: newAmount = self.min
-        if newAmount > self.max: newAmount = self.max
-        self.amount = newAmount
+        [=======>        22%                  ]
+    
+    You may specify the progress bar's width, min and max values on init.
+    """
+    
+    def __init__(self, minval=0, maxval=100, maxwidth=80):
+        self.value = "[]"
+        self.min = minval
+        self.max = maxval
+        self.span = maxval - minval
+        self.width = maxwidth
+        self.amount = 0
+        self.update(0)
+    
+    def update(self, amount):
+        """
+        Update the progress bar with the new amount (with min and max
+        values set at initialization; if it is over or under, it takes the
+        min or max value as a default.
+        """
         
-        # Figure out the new percent done, round to an integer
-        diffFromMin = float(self.amount - self.min)
-        percentDone = (diffFromMin / float(self.span)) * 100.0
-        percentDone = round(percentDone)
-        percentDone = int(percentDone)
+        if amount < self.min:
+            amount = self.min
+        if amount > self.max:
+            amount = self.max
+        self.amount = amount
         
-        # Figure out how many hash bars the percentage should be
-        allFull = self.width - 2
-        numHashes = (percentDone / 100.0) * allFull
-        numHashes = int(round(numHashes))
+        # figure out the new percent done, round to an integer
+        diff_from_min = float(self.amount - self.min)
+        done = (diff_from_min / float(self.span)) * 100.0
+        done = int(round(done))
         
-        # build a progress bar with hashes and spaces
-        self.progBar = "[" + '#'*numHashes + ' '*(allFull-numHashes) + "]"
+        # figure out how many hash bars the percentage should be
+        filled = self.width - 2
+        num_hashes = (done / 100.0) * filled
+        num_hashes = int(round(num_hashes))
+        
+        # Build a progress bar with an arrow of equal signs; special cases for
+        # empty and full
+        if num_hashes == 0:
+            self.value = "[>{}]".format(" " * (filled-1))
+        elif num_hashes == filled:
+            self.value = "[{}]".format("=" * filled)
+        else:
+            self.value = "[{}>{}]".format("=" * (num_hashes - 1), " " * (filled - num_hashes))
         
         # figure out where to put the percentage, roughly centered
-        percentPlace = (len(self.progBar) / 2) - len(str(percentDone)) 
-        percentString = str(percentDone) + "%"
+        percent_offset = (len(self.value) // 2) - len(str(done))
+        percent = "{}%".format(done)
         
         # slice the percentage into the bar
-        self.progBar = self.progBar[0:percentPlace] + percentString + self.progBar[percentPlace+len(percentString):]
+        self.value = "".join([
+            self.value[0:percent_offset],
+            percent,
+            self.value[percent_offset+len(percent):]
+        ])
     
-    def __str__(self):
-        return str(self.progBar)
-
+    def display(self):
+        sys.stdout.write("{}\r".format(self.value))
+        sys.stdout.flush()
