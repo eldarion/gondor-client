@@ -947,7 +947,7 @@ def main():
             "gondor.vcs": local_config.get("vcs"),
             "app": {
                 "requirements_file": local_config.get("requirements_file"),
-                "framework": local_config.get("framework"),
+                "runtime": local_config.get("runtime", "legacy"),
                 "on_deploy": local_config.get("on_deploy", []),
                 "static_urls": list(itertools.chain(*[
                     [(u, c) for u, c in six.iteritems(su)]
@@ -959,7 +959,6 @@ def main():
                 "managepy": local_config.get("django", {}).get("managepy"),
                 "local_settings": local_config.get("django", {}).get("local_settings"),
                 "env": local_config.get("env", {}),
-                "runtime": local_config.get("runtime", "legacy"),
             }
         })
         
