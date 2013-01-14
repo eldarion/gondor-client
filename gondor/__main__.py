@@ -92,7 +92,7 @@ def cmd_init(args, env, config):
             "vcs": config_value(legacy_config, "gondor", "vcs"),
             "requirements_file": config_value(legacy_config, "app", "requirements_file"),
             "wsgi_entry_point": config_value(legacy_config, "app", "wsgi_entry_point"),
-            "framework": "django",
+            "runtime": "python-2.7.3",
             "gunicorn_worker_class": "eventlet",
         })
         on_deploy, static_urls = [], []
@@ -154,7 +154,7 @@ django:
         ctx.update({
             "site_key": site_key,
             "vcs": vcs,
-            "framework": "wsgi",
+            "runtime": "python-2.7.3",
             "requirements_file": "requirements.txt",
             "wsgi_entry_point": "wsgi:application",
             "gunicorn_worker_class": "sync",
@@ -171,8 +171,8 @@ key: {site_key}
 # Version control system used locally for your project.
 vcs: {vcs}
 
-# Framework to use on Gondor.
-framework: {framework}
+# The runtime Gondor should use.
+runtime: {runtime}
 
 # This path is relative to your project root (the directory {config_file} lives in.)
 requirements_file: {requirements_file}
