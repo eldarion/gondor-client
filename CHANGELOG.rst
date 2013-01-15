@@ -9,12 +9,7 @@ CHANGELOG
  * dropped support for Python 2.6 (supported versions are 2.7 and 3.3)
  * added runtime config option for running different Python versions on Gondor
  * fixed newline output in gondor manage
-
-1.1.6
-=====
-
  * fixed bug mercurial commit identification (use hg identify)
- * added runtime config option for running different Python versions
 
 1.1.5
 =====
