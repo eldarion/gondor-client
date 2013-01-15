@@ -1,5 +1,4 @@
 import argparse
-import ConfigParser
 import gzip
 import itertools
 import os
@@ -10,26 +9,36 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib
-import urllib2
 import webbrowser
 import zlib
+
+import six
+from six.moves import configparser, input
+
+if six.PY3:
+    from urllib.error import HTTPError, URLError
+    from urllib.parse import urlencode
+    from urllib.request import urlopen
+else:
+    from urllib2 import urlopen, HTTPError, URLError
+    from urllib import urlencode
 
 try:
     import simplejson as json
 except ImportError:
     import json
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "yaml-3.10.zip")))
+vs = "py3" if six.PY3 else "py2"
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "yaml-{}-3.10.zip".format(vs))))
 import yaml
 
-from gondor import __version__
-from gondor import http, utils
-from gondor.api import make_api_call
-from gondor.prettytable import PrettyTable
-from gondor.progressbar import ProgressBar
-from gondor.run import unix_run_poll, win32_run_poll
-from gondor.utils import out, err, error, warn, api_error
+from . import __version__
+from . import http, utils
+from .api import make_api_call
+from .prettytable import PrettyTable
+from .progressbar import ProgressBar
+from .run import unix_run_poll, win32_run_poll
+from .utils import out, err, error, warn, api_error
 
 
 DEFAULT_ENDPOINT = "https://api.gondor.io"
@@ -38,7 +47,7 @@ DEFAULT_ENDPOINT = "https://api.gondor.io"
 def config_value(config, section, key, default=None):
     try:
         return config.get(section, key)
-    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+    except (configparser.NoOptionError, configparser.NoSectionError):
         return default
 
 
@@ -50,10 +59,10 @@ def load_config(args, kind):
     try:
         return yaml.load(open(config_file, "rb"))
     except IOError:
-        error("unable to find configuration file (looked for %s)\n" % config_file)
+        error("unable to find configuration file (looked for {})\n".format(config_file))
     except yaml.parser.ParserError:
         if kind == "global":
-            c = ConfigParser.RawConfigParser()
+            c = configparser.RawConfigParser()
             try:
                 c.read(config_file)
             except Exception:
@@ -61,14 +70,14 @@ def load_config(args, kind):
                 pass
             else:
                 if args.verbose > 1:
-                    warn("upgrade %s to YAML\n" % config_file)
+                    warn("upgrade {} to YAML\n".format(config_file))
                 return {
                     "auth": {
                         "username": config_value(c, "auth", "username"),
                         "key": config_value(c, "auth", "key"),
                     }
                 }
-        error("unable to parse %s\n" % config_file)
+        error("unable to parse {}\n".format(config_file))
 
 
 def cmd_init(args, env, config):
@@ -76,14 +85,14 @@ def cmd_init(args, env, config):
     ctx = dict(config_file=config_file)
     if args.upgrade:
         gondor_dir = utils.find_nearest(os.getcwd(), ".gondor")
-        legacy_config = ConfigParser.RawConfigParser()
+        legacy_config = configparser.RawConfigParser()
         legacy_config.read(os.path.abspath(os.path.join(gondor_dir, ".gondor", "config")))
         ctx.update({
             "site_key": config_value(legacy_config, "gondor", "site_key"),
             "vcs": config_value(legacy_config, "gondor", "vcs"),
             "requirements_file": config_value(legacy_config, "app", "requirements_file"),
             "wsgi_entry_point": config_value(legacy_config, "app", "wsgi_entry_point"),
-            "framework": "django",
+            "runtime": "python-2.7.3",
             "gunicorn_worker_class": "eventlet",
         })
         on_deploy, static_urls = [], []
@@ -112,19 +121,18 @@ def cmd_init(args, env, config):
         if not managepy:
             managepy = "manage.py"
         if site_media_url:
-            static_urls.extend(["    - %s:" % site_media_url, "        root: site_media/"])
+            static_urls.extend(["    - {}:".format(site_media_url), "        root: site_media/"])
         extra_config_file_data = """
 django:
     # The location of your manage.py. Gondor uses this as an entry point for
     # management commands. This path is relative to your project root (the
-    # directory %(config_file)s lives in.)
-    managepy: %(managepy)s
-""" % {
-    "managepy": managepy,
-    "config_file": config_file,
-}
+    # directory {config_file} lives in.)
+    managepy: {managepy}
+""".format(managepy=managepy, config_file=config_file)
     else:
         site_key = args.site_key
+        if site_key is None:
+            error("You must provide a site key.\n")
         if len(site_key) < 11:
             error("The site key given is too short.\n")
         ctx["wsgi_entry_point"] = "wsgi:application"
@@ -146,7 +154,7 @@ django:
         ctx.update({
             "site_key": site_key,
             "vcs": vcs,
-            "framework": "wsgi",
+            "runtime": "python-2.7.3",
             "requirements_file": "requirements.txt",
             "wsgi_entry_point": "wsgi:application",
             "gunicorn_worker_class": "sync",
@@ -158,24 +166,24 @@ django:
     ctx["static_urls"] = "\n".join(["static_urls:"] + static_urls)
     if not os.path.exists(config_file):
         config_file_data = """# The key associated to your site.
-key: %(site_key)s
+key: {site_key}
 
 # Version control system used locally for your project.
-vcs: %(vcs)s
+vcs: {vcs}
 
-# Framework to use on Gondor.
-framework: %(framework)s
+# Python version to run on Gondor.
+runtime: {runtime}
 
-# This path is relative to your project root (the directory %(config_file)s lives in.)
-requirements_file: %(requirements_file)s
+# This path is relative to your project root (the directory {config_file} lives in.)
+requirements_file: {requirements_file}
 
 # Commands to be executed during deployment. These can handle migrations or
 # moving static files into place. Accepts same parameters as gondor run.
-%(on_deploy)s
+{on_deploy}
 
 # URLs which should be served by Gondor mapping to a filesystem location
 # relative to your writable storage area.
-%(static_urls)s
+{static_urls}
 
 wsgi:
     # The WSGI entry point of your application in two parts separated by a
@@ -185,29 +193,29 @@ wsgi:
     #
     # wsgi = the Python module which should be importable
     # application = the callable in the Python module
-    entry_point: %(wsgi_entry_point)s
+    entry_point: {wsgi_entry_point}
     
     # Options for gunicorn which runs your WSGI project.
     gunicorn:
         # The worker class used to run gunicorn (possible values include:
         # sync, eventlet and gevent)
-        worker_class: %(gunicorn_worker_class)s
-""" % ctx
-        out("Writing configuration (%s)... " % config_file)
+        worker_class: {gunicorn_worker_class}
+""".format(**ctx)
+        out("Writing configuration ({})... ".format(config_file))
         with open(config_file, "wb") as cf:
-            cf.write(config_file_data + extra_config_file_data)
+            cf.write((config_file_data + extra_config_file_data).encode("utf-8"))
         out("[ok]\n")
         if args.upgrade:
             out("\nYour configuration file has been upgraded. New configuration is located\n")
-            out("in %s. Make sure you check this file before continuing then add and\n" % config_file)
+            out("in {}. Make sure you check this file before continuing then add and\n".format(config_file))
             out("commit it to your VCS.\n")
         else:
             out("\nYou are now ready to deploy your project to Gondor. You might want to first\n")
-            out("check %s (in this directory) for correct values for your\n" % config_file)
+            out("check {} (in this directory) for correct values for your\n".format(config_file))
             out("application. Once you are ready, run:\n\n")
-            out("    gondor deploy primary %s\n" % {"git": "master", "hg": "default"}[vcs])
+            out("    gondor deploy primary {}\n".format({"git": "master", "hg": "default"}[vcs]))
     else:
-        out("Detected existing %s. Not overriding.\n" % config_file)
+        out("Detected existing {}. Not overriding.\n".format(config_file))
 
 
 def cmd_create(args, env, config):
@@ -219,7 +227,7 @@ def cmd_create(args, env, config):
         kind = "dev"
     
     text = "Creating instance on Gondor... "
-    url = "%s/instance/create/" % config["gondor.endpoint"]
+    url = "{}/instance/create/".format(config["gondor.endpoint"])
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -228,22 +236,22 @@ def cmd_create(args, env, config):
         "project_root": os.path.basename(env["project_root"]),
     }
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     if data["status"] == "error":
         message = "error"
     elif data["status"] == "success":
         message = "ok"
     else:
         message = "unknown"
-    out("\r%s[%s]   \n" % (text, message))
+    out("\r{}[{}]   \n".format(text, message))
     if data["status"] == "success":
-        out("\nRun: gondor deploy %s %s" % (label, {"git": "HEAD", "hg": "tip"}[config["gondor.vcs"]]))
-        out("\nVisit: %s\n" % data["url"])
+        out("\nRun: gondor deploy {} {}".format(label, {"git": "HEAD", "hg": "tip"}[config["gondor.vcs"]]))
+        out("\nVisit: {}\n".format(data["url"]))
     else:
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
 
 
 def cmd_deploy(args, env, config):
@@ -256,35 +264,37 @@ def cmd_deploy(args, env, config):
         if config["gondor.vcs"] == "git":
             try:
                 git = utils.find_command("git")
-            except utils.BadCommand, e:
+            except utils.BadCommand as e:
                 error(e.args[0])
             check, sha = utils.run_proc([git, "rev-parse", commit])
+            sha = sha.decode("ascii")
             if check != 0:
-                error("could not map '%s' to a SHA\n" % commit)
+                error("could not map '{}' to a SHA\n".format(commit))
             if commit == "HEAD":
                 commit = sha
-            tar_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar" % (label, sha)))
+            tar_path = os.path.abspath(os.path.join(env["repo_root"], "{}-{}.tar".format(label, sha)))
             cmd = [git, "archive", "--format=tar", commit, "-o", tar_path]
         elif config["gondor.vcs"] == "hg":
             try:
                 hg = utils.find_command("hg")
-            except utils.BadCommand, e:
+            except utils.BadCommand as e:
                 error(e.args[0])
             check, sha = utils.run_proc([hg, "identify", "--id", "-r", commit])
+            sha = sha.decode("ascii")
             if check != 0:
-                error("could not map '%s' to a SHA\n" % commit)
-            tar_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar" % (label, sha)))
+                error("could not map '{}' to a SHA\n".format(commit))
+            tar_path = os.path.abspath(os.path.join(env["repo_root"], "{}-{}.tar".format(label, sha)))
             cmd = [hg, "archive", "-p", ".", "-t", "tar", "-r", commit, tar_path]
         else:
-            error("'%s' is not a valid version control system for Gondor\n" % config["gondor.vcs"])
+            error("'{}' is not a valid version control system for Gondor\n".format(config["gondor.vcs"]))
         
-        out("Archiving code from %s... " % commit)
+        out("Archiving code from {}... ".format(commit))
         check, output = utils.run_proc(cmd, cwd=env["repo_root"])
         if check != 0:
             error(output)
         out("[ok]\n")
         
-        tarball_path = os.path.abspath(os.path.join(env["repo_root"], "%s-%s.tar.gz" % (label, sha)))
+        tarball_path = os.path.abspath(os.path.join(env["repo_root"], "{}-{}.tar.gz".format(label, sha)))
         
         out("Building tarball... ")
         with open(tar_path, "rb") as tar_fp:
@@ -297,7 +307,7 @@ def cmd_deploy(args, env, config):
         
         pb = ProgressBar(0, 100, 77)
         out("Pushing tarball to Gondor... \n")
-        url = "%s/instance/deploy/" % config["gondor.endpoint"]
+        url = "{}/instance/deploy/".format(config["gondor.endpoint"])
         
         with open(tarball_path, "rb") as tarball:
             params = {
@@ -321,12 +331,12 @@ def cmd_deploy(args, env, config):
             except KeyboardInterrupt:
                 out("\nCanceling uploading... [ok]\n")
                 sys.exit(1)
-            except urllib2.HTTPError, e:
+            except HTTPError as e:
                 out("\n")
                 api_error(e)
             else:
                 out("\n")
-                data = json.loads(response.read())
+                data = json.loads(response.read().decode("utf-8"))
     
     finally:
         if tar_path and os.path.exists(tar_path):
@@ -335,7 +345,7 @@ def cmd_deploy(args, env, config):
             os.unlink(tarball_path)
     
     if data["status"] == "error":
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
     if data["status"] == "success":
         deployment_id = data["deployment"]
         if "url" in data:
@@ -352,25 +362,25 @@ def cmd_deploy(args, env, config):
                 "instance_label": label,
                 "task_id": deployment_id,
             }
-            url = "%s/task/status/" % config["gondor.endpoint"]
+            url = "{}/task/status/".format(config["gondor.endpoint"])
             try:
-                response = make_api_call(config, url, urllib.urlencode(params))
-            except urllib2.URLError:
+                response = make_api_call(config, url, urlencode(params))
+            except URLError:
                 # @@@ add max retries
                 continue
-            data = json.loads(response.read())
+            data = json.loads(response.read().decode("utf-8"))
             if data["status"] == "error":
                 out("[error]\n")
-                error("%s\n" % data["message"])
+                error("{}\n".format(data["message"]))
             if data["status"] == "success":
                 if data["state"] == "finished":
                     out("[ok]\n")
                     if instance_url:
-                        out("\nVisit: %s\n" % instance_url)
+                        out("\nVisit: {}\n".format(instance_url))
                     break
                 elif data["state"] == "failed":
                     out("[failed]\n")
-                    out("\n%s\n" % data["reason"])
+                    out("\n{}\n".format(data["reason"]))
                     sys.exit(1)
                 elif data["state"] == "locked":
                     out("[locked]\n")
@@ -386,20 +396,20 @@ def cmd_sqldump(args, env, config):
     # request SQL dump and stream the response through uncompression
     
     err("Dumping database... ")
-    url = "%s/instance/sqldump/" % config["gondor.endpoint"]
+    url = "{}/instance/sqldump/".format(config["gondor.endpoint"])
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
         "label": label,
     }
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "error":
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
     if data["status"] == "success":
         task_id = data["task"]
         while True:
@@ -409,23 +419,23 @@ def cmd_sqldump(args, env, config):
                 "instance_label": label,
                 "task_id": task_id,
             }
-            url = "%s/task/status/" % config["gondor.endpoint"]
+            url = "{}/task/status/".format(config["gondor.endpoint"])
             try:
-                response = make_api_call(config, url, urllib.urlencode(params))
-            except urllib2.URLError:
+                response = make_api_call(config, url, urlencode(params))
+            except URLError:
                 # @@@ add max retries
                 continue
-            data = json.loads(response.read())
+            data = json.loads(response.read().decode("utf-8"))
             if data["status"] == "error":
                 err("[error]\n")
-                error("%s\n" % data["message"])
+                error("{}\n".format(data["message"]))
             if data["status"] == "success":
                 if data["state"] == "finished":
                     err("[ok]\n")
                     break
                 elif data["state"] == "failed":
                     err("[failed]\n")
-                    err("\n%s\n" % data["reason"])
+                    err("\n{}\n".format(data["reason"]))
                     sys.exit(1)
                 elif data["state"] == "locked":
                     err("[locked]\n")
@@ -438,12 +448,12 @@ def cmd_sqldump(args, env, config):
     
     d = zlib.decompressobj(16+zlib.MAX_WBITS)
     cs = 16 * 1024
-    response = urllib2.urlopen(data["result"]["public_url"])
+    response = urlopen(data["result"]["public_url"])
     while True:
         chunk = response.read(cs)
         if not chunk:
             break
-        out(d.decompress(chunk))
+        out(d.decompress(chunk).decode("utf-8"))
 
 
 def cmd_run(args, env, config):
@@ -455,7 +465,7 @@ def cmd_run(args, env, config):
         err("Spawning... ")
     else:
         err("Attaching... ")
-    url = "%s/instance/run/" % config["gondor.endpoint"]
+    url = "{}/instance/run/".format(config["gondor.endpoint"])
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -478,15 +488,15 @@ def cmd_run(args, env, config):
             # terminal info so it will default some common values
             pass
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         err("[failed]\n")
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     endpoint = None if args.detached else tuple(data["endpoint"])
     if data["status"] == "error":
         err("[error]\n")
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
     if data["status"] == "success":
         task_id = data["task"]
         tc, tl = data["tc"], data["tl"]
@@ -497,12 +507,12 @@ def cmd_run(args, env, config):
                 "instance_label": instance_label,
                 "task_id": task_id,
             }
-            url = "%s/task/status/" % config["gondor.endpoint"]
-            response = make_api_call(config, url, urllib.urlencode(params))
-            data = json.loads(response.read())
+            url = "{}/task/status/".format(config["gondor.endpoint"])
+            response = make_api_call(config, url, urlencode(params))
+            data = json.loads(response.read().decode("utf-8"))
             if data["status"] == "error":
                 err("[error]\n")
-                error("%s\n" % data["message"])
+                error("{}\n".format(data["message"]))
             if data["status"] == "success":
                 if data["state"] == "finished":
                     if args.detached:
@@ -511,7 +521,7 @@ def cmd_run(args, env, config):
                     break
                 elif data["state"] == "failed":
                     err("[failed]\n")
-                    error("%s\n" % data["reason"])
+                    error("{}\n".format(data["reason"]))
                 elif data["state"] == "locked":
                     err("[locked]\n")
                     err("\nYour execution failed due to being locked. This means there is another execution already in progress.\n")
@@ -522,7 +532,7 @@ def cmd_run(args, env, config):
             err("Check your logs for output.\n")
         else:
             # connect to process
-            for x in xrange(5):
+            for x in range(5):
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 ssl_kwargs = {
                     "ca_certs": os.path.join(os.path.abspath(os.path.dirname(__file__)), "ssl", "run.gondor.io.crt"),
@@ -532,17 +542,17 @@ def cmd_run(args, env, config):
                 sock = ssl.wrap_socket(sock, **ssl_kwargs)
                 try:
                     sock.connect(endpoint)
-                except IOError, e:
+                except IOError as e:
                     time.sleep(0.5)
                     continue
                 else:
                     err("[ok]\n")
                     if args.verbose > 1:
-                        err("Terminal set to %sx%s\n" % (tc, tl))
+                        err("Terminal set to {}x{}\n".format(tc, tl))
                     break
             else:
                 err("[failed]\n")
-                error("unable to attach to process (reason: %s)\n" % e)
+                error("unable to attach to process (reason: {})\n".format(e))
             if sys.platform == "win32":
                 win32_run_poll(sock)
             else:
@@ -555,46 +565,46 @@ def cmd_delete(args, env, config):
     
     text = "ARE YOU SURE YOU WANT TO DELETE THIS INSTANCE? [Y/N] "
     out(text)
-    user_input = raw_input()
+    user_input = input()
     if user_input != "Y":
         out("Exiting without deleting the instance.\n")
         sys.exit(0)
     text = "Deleting... "
     
-    url = "%s/instance/delete/" % config["gondor.endpoint"]
+    url = "{}/instance/delete/".format(config["gondor.endpoint"])
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
         "instance_label": instance_label,
     }
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     if data["status"] == "error":
         message = "error"
     elif data["status"] == "success":
         message = "ok"
     else:
         message = "unknown"
-    out("\r%s[%s]   \n" % (text, message))
+    out("\r{}[{}]   \n".format(text, message))
     if data["status"] == "error":
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
 
 
 def cmd_list(args, env, config):
     
-    url = "%s/site/instances/" % config["gondor.endpoint"]
+    url = "{}/site/instances/".format(config["gondor.endpoint"])
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
     }
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "success":
         instances = sorted(data["instances"], key=lambda v: v["label"])
@@ -610,11 +620,11 @@ def cmd_list(args, env, config):
                     instance["avg_requests_per_second"],
                     instance["avg_request_duration"],
                 ])
-            print table
+            print(table)
         else:
             out("No instances found.\n")
     else:
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
 
 
 def cmd_manage(args, env, config):
@@ -624,12 +634,12 @@ def cmd_manage(args, env, config):
     opargs = args.opargs
     
     if operation == "database:load" and not args.yes:
-        out("This command will destroy all data in the database for %s\n" % instance_label)
-        answer = raw_input("Are you sure you want to continue? [y/n]: ")
+        out("This command will destroy all data in the database for {}\n".format(instance_label))
+        answer = input("Are you sure you want to continue? [y/n]: ")
         if answer != "y":
             sys.exit(1)
     
-    url = "%s/instance/manage/" % config["gondor.endpoint"]
+    url = "{}/instance/manage/".format(config["gondor.endpoint"])
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
@@ -639,13 +649,14 @@ def cmd_manage(args, env, config):
     handlers = [
         http.MultipartPostHandler,
     ]
+    pb = None
     if operation in ["database:load"]:
         if opargs:
             filename = os.path.abspath(os.path.expanduser(opargs[0]))
             try:
                 fp = open(filename, "rb")
             except IOError:
-                error("unable to open %s\n" % filename)
+                error("unable to open {}\n".format(filename))
             out("Compressing file... ")
             fd, tmp = tempfile.mkstemp()
             fpc = gzip.open(tmp, "wb")
@@ -666,20 +677,22 @@ def cmd_manage(args, env, config):
                 http.UploadProgressHandler(pb, ssl=False)
             ])
         else:
-            error("%s takes one argument.\n" % operation)
-    params = params.items()
+            error("{} takes one argument.\n".format(operation))
+    params = list(six.iteritems(params))
     for oparg in opargs:
         params.append(("arg", oparg))
     try:
         response = make_api_call(config, url, params, extra_handlers=handlers)
-    except urllib2.HTTPError, e:
+    except HTTPError as e:
         api_error(e)
-    out("\nRunning... ")
-    data = json.loads(response.read())
+    if pb is not None:
+        out("\n")
+    out("Running... ")
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "error":
         out("[error]\n")
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
     if data["status"] == "success":
         if "task" in data:
             task_id = data["task"]
@@ -690,19 +703,19 @@ def cmd_manage(args, env, config):
                     "instance_label": instance_label,
                     "task_id": task_id,
                 }
-                url = "%s/task/status/" % config["gondor.endpoint"]
-                response = make_api_call(config, url, urllib.urlencode(params))
-                data = json.loads(response.read())
+                url = "{}/task/status/".format(config["gondor.endpoint"])
+                response = make_api_call(config, url, urlencode(params))
+                data = json.loads(response.read().decode("utf-8"))
                 if data["status"] == "error":
                     out("[error]\n")
-                    out("\nError: %s\n" % data["message"])
+                    out("\nError: {}\n".format(data["message"]))
                 if data["status"] == "success":
                     if data["state"] == "finished":
                         out("[ok]\n")
                         break
                     elif data["state"] == "failed":
                         out("[failed]\n")
-                        out("\n%s\n" % data["reason"])
+                        out("\n{}\n".format(data["reason"]))
                         sys.exit(1)
                     elif data["state"] == "locked":
                         out("[locked]\n")
@@ -715,23 +728,23 @@ def cmd_manage(args, env, config):
 
 
 def cmd_open(args, env, config):
-    url = "%s/instance/detail/" % config["gondor.endpoint"]
+    url = "{}/instance/detail/".format(config["gondor.endpoint"])
     params = {
         "version": __version__,
         "site_key": config["gondor.site_key"],
         "label": args.label[0],
     }
-    url += "?%s" % urllib.urlencode(params)
+    url += "?{}".format(urlencode(params))
     try:
         response = make_api_call(config, url)
-    except urllib2.HTTPError, e:
+    except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "success":
         webbrowser.open(data["object"]["url"])
     else:
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
 
 
 def cmd_dashboard(args, env, config):
@@ -740,25 +753,25 @@ def cmd_dashboard(args, env, config):
         "site_key": config["gondor.site_key"],
     }
     if args.label:
-        url = "%s/instance/detail/" % config["gondor.endpoint"]
+        url = "{}/instance/detail/".format(config["gondor.endpoint"])
         params["label"] = args.label
     else:
-        url = "%s/site/detail/" % config["gondor.endpoint"]
-    url += "?%s" % urllib.urlencode(params)
+        url = "{}/site/detail/".format(config["gondor.endpoint"])
+    url += "?{}".format(urlencode(params))
     try:
         response = make_api_call(config, url)
-    except urllib2.HTTPError, e:
+    except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     
     if data["status"] == "success":
         webbrowser.open(data["object"]["dashboard_url"])
     else:
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
 
 
 def cmd_env(args, env, config):
-    url = "%s/site/env/" % config["gondor.endpoint"]
+    url = "{}/site/env/".format(config["gondor.endpoint"])
     bits = args.bits
     params = [
         ("version", __version__),
@@ -775,22 +788,22 @@ def cmd_env(args, env, config):
         else: # get var(s) on instance
             params.append(("label", bits[0]))
             params.extend([("key", k) for k in bits[1:]])
-    url += "?%s" % urllib.urlencode(params)
+    url += "?{}".format(urlencode(params))
     try:
         response = make_api_call(config, url)
-    except urllib2.HTTPError, e:
+    except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     if data["status"] == "success":
         if data["env"]:
-            for k, v in data["env"].iteritems():
-                out("%s=%s\n" % (k, v))
+            for k, v in six.iteritems(data["env"]):
+                out("{}={}\n".format(k, v))
     else:
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
 
 
 def cmd_env_set(args, env, config):
-    url = "%s/site/env/" % config["gondor.endpoint"]
+    url = "{}/site/env/".format(config["gondor.endpoint"])
     bits = args.bits
     params = [
         ("version", __version__),
@@ -804,18 +817,18 @@ def cmd_env_set(args, env, config):
             params.append(("label", bits[0]))
             params.extend([("variable", v) for v in bits[1:]])
     try:
-        response = make_api_call(config, url, urllib.urlencode(params))
-    except urllib2.HTTPError, e:
+        response = make_api_call(config, url, urlencode(params))
+    except HTTPError as e:
         api_error(e)
-    data = json.loads(response.read())
+    data = json.loads(response.read().decode("utf-8"))
     if data["status"] == "success":
-        for k, v in data["env"].iteritems():
+        for k, v in six.iteritems(data["env"]):
             if v is None:
-                out("removed %s\n" % k)
+                out("removed {}\n".format(k))
             else:
-                out("%s=%s\n" % (k, v))
+                out("{}={}\n".format(k, v))
     else:
-        error("%s\n" % data["message"])
+        error("{}\n".format(data["message"]))
 
 
 def main():
@@ -896,6 +909,10 @@ def main():
     
     args = parser.parse_args()
     
+    if args.command is None:
+        parser.print_usage()
+        sys.exit(1)
+    
     # config / env
     
     global_config = load_config(args, "global")
@@ -915,7 +932,7 @@ def main():
         try:
             env["project_root"] = utils.find_nearest(os.getcwd(), config_file)
         except OSError:
-            error("unable to find %s configuration file.\n" % config_file)
+            error("unable to find {} configuration file.\n".format(config_file))
         
         if args.verbose > 1:
             out("Reading configuration... ")
@@ -933,10 +950,10 @@ def main():
             "gondor.vcs": local_config.get("vcs"),
             "app": {
                 "requirements_file": local_config.get("requirements_file"),
-                "framework": local_config.get("framework"),
+                "runtime": local_config.get("runtime", "legacy"),
                 "on_deploy": local_config.get("on_deploy", []),
                 "static_urls": list(itertools.chain(*[
-                    [(u, c) for u, c in su.iteritems()]
+                    [(u, c) for u, c in six.iteritems(su)]
                     for su in local_config.get("static_urls", [])
                 ])),
                 "wsgi_entry_point": local_config.get("wsgi", {}).get("entry_point"),
@@ -945,7 +962,6 @@ def main():
                 "managepy": local_config.get("django", {}).get("managepy"),
                 "local_settings": local_config.get("django", {}).get("local_settings"),
                 "env": local_config.get("env", {}),
-                "runtime": local_config.get("runtime", "legacy"),
             }
         })
         
@@ -957,16 +973,16 @@ def main():
         try:
             vcs_dir = {"git": ".git", "hg": ".hg"}[config["gondor.vcs"]]
         except KeyError:
-            error("'%s' is not a valid version control system for Gondor\n" % config["gondor.vcs"])
+            error("'{}' is not a valid version control system for Gondor\n".format(config["gondor.vcs"]))
         try:
             env["repo_root"] = utils.find_nearest(os.getcwd(), vcs_dir)
         except OSError:
-            error("unable to find a %s directory.\n" % vcs_dir)
+            error("unable to find a {} directory.\n".format(vcs_dir))
         
         if config["auth.username"] is None or config["auth.key"] is None:
             error(
-                "you must provide a username and API key in %s or set it in "
-                "the environment.\n" % os.path.expanduser("~/.gondor")
+                "you must provide a username and API key in {} or set it in "
+                "the environment.\n".format(os.path.expanduser("~/.gondor"))
             )
         
         if config["gondor.site_key"] is None:

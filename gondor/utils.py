@@ -3,6 +3,9 @@ import os
 import subprocess
 import sys
 
+import six
+from six.moves import xrange, input
+
 try:
     import simplejson as json
 except ImportError:
@@ -39,22 +42,22 @@ def err(msg):
 
 
 def error(msg, exit=True):
-    err("ERROR: %s" % msg)
+    err("ERROR: {}".format(msg))
     if exit:
         sys.exit(1)
 
 
 def warn(msg):
-    err("WARNING: %s" % msg)
+    err("WARNING: {}".format(msg))
 
 
 def confirm(msg):
-    answer = raw_input("%s [y/n]: ")
+    answer = input("%s [y/n]: ")
     return answer == "y"
 
 
 def api_error(e):
-    data = e.read()
+    data = e.read().decode("utf-8")
     try:
         data = json.loads(data)
     except ValueError:
@@ -62,10 +65,10 @@ def api_error(e):
     else:
         message = data["message"]
     if "\n" in message:
-        output = "\n\n%s" % message
+        output = "\n\n{}".format(message)
     else:
         output = message
-    out("API returned an error [%d]: %s\n" % (e.code, message))
+    out("API returned an error [{}]: {}\n".format(e.code, message))
     sys.exit(1)
 
 
@@ -80,7 +83,7 @@ def find_command(cmd, paths=None, pathext=None):
     """
     if paths is None:
         paths = os.environ.get("PATH", "").split(os.pathsep)
-    if isinstance(paths, basestring):
+    if isinstance(paths, six.string_types):
         paths = [paths]
     # check if there are funny path extensions for executables, e.g. Windows
     if pathext is None:
@@ -100,7 +103,7 @@ def find_command(cmd, paths=None, pathext=None):
                 return cmd_path_ext
         if os.path.isfile(cmd_path):
             return cmd_path
-    raise BadCommand("Cannot find command %r" % cmd)
+    raise BadCommand("Cannot find command {!r}".format(cmd))
 
 
 def get_pathext(default_pathext=None):

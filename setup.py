@@ -5,11 +5,6 @@ from setuptools import setup, find_packages
 from gondor import __version__
 
 
-install_requires = []
-if sys.version_info < (2, 7):
-    install_requires.append("argparse==1.1")
-
-
 setup(
     name = "gondor",
     version = __version__,
@@ -21,7 +16,8 @@ setup(
     package_data = {
         "gondor": [
             "ssl/*.crt",
-            "yaml-3.10.zip",
+            "yaml-py2-3.10.zip",
+            "yaml-py3-3.10.zip",
         ]
     },
     zip_safe = False,
@@ -30,5 +26,11 @@ setup(
             "gondor = gondor.__main__:main",
         ],
     },
-    install_requires = install_requires,
+    install_requires = [
+        "six==1.2.0",
+    ],
+    classifiers = [
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+    ],
 )

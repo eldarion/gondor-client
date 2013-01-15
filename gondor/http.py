@@ -1,15 +1,21 @@
-import httplib
-import mimetools
+import email.generator
+import io
 import os
 import re
 import socket
 import ssl
 import sys
 import time
-import urllib
-import urllib2
 
-from cStringIO import StringIO
+import six
+from six.moves import http_client
+
+if six.PY3:
+    from urllib.parse import urlencode
+    from urllib.request import BaseHandler, HTTPHandler, HTTPSHandler
+else:
+    from urllib import urlencode
+    from urllib2 import BaseHandler, HTTPHandler, HTTPSHandler
 
 ucb = None # upload callback
 ubs = None # upload bytes sent
@@ -70,19 +76,14 @@ def match_hostname(cert, hostname):
                         return
                     dnsnames.append(value)
     if len(dnsnames) > 1:
-        raise CertificateError("hostname %r "
-            "doesn't match either of %s"
-            % (hostname, ', '.join(map(repr, dnsnames))))
+        raise CertificateError("hostname {!r} doesn't match either of {}".format(hostname, ", ".join(map(repr, dnsnames))))
     elif len(dnsnames) == 1:
-        raise CertificateError("hostname %r "
-            "doesn't match %r"
-            % (hostname, dnsnames[0]))
+        raise CertificateError("hostname {!r} doesn't match {!r}".format(hostname, dnsnames[0]))
     else:
-        raise CertificateError("no appropriate commonName or "
-            "subjectAltName fields were found")
+        raise CertificateError("no appropriate commonName or subjectAltName fields were found")
 
 
-class HTTPSConnection(httplib.HTTPConnection):
+class HTTPSConnection(http_client.HTTPConnection):
     """
     This class allows communication via SSL.
     Ported from Python 3.2. Does not follow Eldarion code-style.
@@ -92,7 +93,7 @@ class HTTPSConnection(httplib.HTTPConnection):
     
     def __init__(self, host, port=None, key_file=None, cert_file=None,
                  strict=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
-        httplib.HTTPConnection.__init__(self, host, port, strict, timeout)
+        http_client.HTTPConnection.__init__(self, host, port, strict, timeout)
         self.key_file = key_file
         self.cert_file = cert_file
     
@@ -113,7 +114,8 @@ class HTTPSConnection(httplib.HTTPConnection):
             raise
 
 
-class HTTPSHandler(urllib2.HTTPSHandler):
+class GondorHTTPSHandler(HTTPSHandler):
+    
     def https_open(self, request):
         return self.do_open(HTTPSConnection, request)
 
@@ -121,10 +123,10 @@ class HTTPSHandler(urllib2.HTTPSHandler):
 def UploadProgressHandler(pb, ssl=False):
     if ssl:
         conn_class = HTTPSConnection
-        handler_class = urllib2.HTTPSHandler
+        handler_class = HTTPSHandler
     else:
-        conn_class = httplib.HTTPConnection
-        handler_class = urllib2.HTTPHandler
+        conn_class = http_client.HTTPConnection
+        handler_class = HTTPHandler
     class HTTPConnection(conn_class):
         def send(self, buf):
             global ubt, ubs
@@ -134,10 +136,9 @@ def UploadProgressHandler(pb, ssl=False):
             prev = 0
             while ubs < send_length:
                 percentage = int(round((float(ubs) / ubt) * 100))
-                pb.updateAmount(percentage)
+                pb.update(percentage)
                 if percentage != prev:
-                    sys.stdout.write("%s\r" % pb)
-                    sys.stdout.flush()
+                    pb.display()
                     prev = percentage
                 t1 = time.time()
                 conn_class.send(self, buf[ubs:ubs+cs])
@@ -145,11 +146,10 @@ def UploadProgressHandler(pb, ssl=False):
                 t2 = time.time()
             # once we are done uploading the file set the progress bar to
             # 100% as sometimes it never gets full
-            pb.updateAmount(100)
-            sys.stdout.write("%s\r" % pb)
-            sys.stdout.flush()
+            pb.update(100)
+            pb.display()
     class _UploadProgressHandler(handler_class):
-        handler_order = urllib2.HTTPHandler.handler_order - 9 # run second
+        handler_order = HTTPHandler.handler_order - 9 # run second
         if ssl:
             def https_open(self, request):
                 return self.do_open(HTTPConnection, request)
@@ -159,8 +159,8 @@ def UploadProgressHandler(pb, ssl=False):
     return _UploadProgressHandler
 
 
-class MultipartPostHandler(urllib2.BaseHandler):
-    handler_order = urllib2.HTTPHandler.handler_order - 10 # run first
+class MultipartPostHandler(BaseHandler):
+    handler_order = HTTPHandler.handler_order - 10 # run first
     
     def http_request(self, request):
         data = request.get_data()
@@ -168,7 +168,7 @@ class MultipartPostHandler(urllib2.BaseHandler):
             params, files = [], []
             try:
                 if isinstance(data, dict):
-                    data = data.iteritems()
+                    data = six.iteritems(data)
                 for key, value in data:
                     if hasattr(value, "read"):
                         files.append((key, value))
@@ -177,10 +177,10 @@ class MultipartPostHandler(urllib2.BaseHandler):
             except TypeError:
                 raise TypeError("not a valid non-string sequence or mapping object")
             if not files:
-                data = urllib.urlencode(params, 1)
+                data = urlencode(params, 1).encode("utf-8")
             else:
                 boundary, data = self.multipart_encode(params, files)
-                request.add_unredirected_header("Content-Type", "multipart/form-data; boundary=%s" % boundary)
+                request.add_unredirected_header("Content-Type", b'multipart/form-data; boundary="'+ boundary + b'"')
             request.add_data(data)
         return request
     
@@ -188,19 +188,28 @@ class MultipartPostHandler(urllib2.BaseHandler):
     
     def multipart_encode(self, params, files, boundary=None, buf=None):
         if boundary is None:
-            boundary = mimetools.choose_boundary()
+            boundary = email.generator._make_boundary()
+            boundary = boundary.encode("latin-1")
         if buf is None:
-            buf = StringIO()
+            buf = io.BytesIO()
         for key, value in params:
-            buf.write("--%s\r\n" % boundary)
-            buf.write('Content-Disposition: form-data; name="%s"' % key)
-            buf.write("\r\n\r\n" + value + "\r\n")
+            if isinstance(key, six.string_types):
+                key = key.encode("latin-1")
+            if isinstance(value, six.string_types):
+                value = value.encode("latin-1")
+            buf.write(b"--" + boundary + b"\r\n")
+            buf.write(b'Content-Disposition: form-data; name="' + key + b'"')
+            buf.write(b"\r\n\r\n" + value + b"\r\n")
         for key, fd in files:
-            filename = fd.name.split("/")[-1]
-            buf.write("--%s\r\n" % boundary)
-            buf.write('Content-Disposition: form-data; name="%s"; filename="%s"\r\n' % (key, filename))
-            buf.write("Content-Type: application/octet-stream\r\n")
-            buf.write("\r\n" + fd.read() + "\r\n")
-        buf.write("--" + boundary + "--\r\n\r\n")
+            if isinstance(key, six.string_types):
+                key = key.encode("latin-1")
+            filename = fd.name.split("/")[-1].encode("latin-1")
+            buf.write(b"--" + boundary + b"\r\n")
+            buf.write(b'Content-Disposition: form-data; name="' + key + b'"; filename="' + filename + b'"\r\n')
+            buf.write(b"Content-Type: application/octet-stream")
+            buf.write(b"\r\n\r\n")
+            buf.write(fd.read())
+            buf.write(b"\r\n")
+        buf.write(b"--" + boundary + b"--\r\n\r\n")
         buf = buf.getvalue()
         return boundary, buf
