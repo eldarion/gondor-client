@@ -1,4 +1,5 @@
 import contextlib
+import io
 import os
 import subprocess
 import sys
@@ -10,6 +11,10 @@ try:
     import simplejson as json
 except ImportError:
     import json
+
+
+stdout = io.FileIO(sys.stdout.fileno(), "wb")
+stderr = io.FileIO(sys.stderr.fileno(), "wb")
 
 
 def run_proc(cmd, **kwargs):
@@ -32,13 +37,17 @@ def find_nearest(directory, search):
 
 
 def out(msg):
-    sys.stdout.write(msg)
-    sys.stdout.flush()
+    if isinstance(msg, six.text_type):
+        msg = msg.encode("utf-8")
+    stdout.write(msg)
+    stdout.flush()
 
 
 def err(msg):
-    sys.stderr.write(msg)
-    sys.stderr.flush()
+    if isinstance(msg, six.text_type):
+        msg = msg.encode("utf-8")
+    stderr.write(msg)
+    stderr.flush()
 
 
 def error(msg, exit=True):
