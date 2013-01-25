@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.2.1
+=====
+
+ * fixed encoding issues with sqldump
+
 1.2
 ===
 

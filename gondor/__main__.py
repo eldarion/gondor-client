@@ -453,7 +453,7 @@ def cmd_sqldump(args, env, config):
         chunk = response.read(cs)
         if not chunk:
             break
-        out(d.decompress(chunk).decode("utf-8"))
+        out(d.decompress(chunk))
 
 
 def cmd_run(args, env, config):
