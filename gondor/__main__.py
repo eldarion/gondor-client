@@ -200,6 +200,11 @@ wsgi:
         # The worker class used to run gunicorn (possible values include:
         # sync, eventlet and gevent)
         worker_class: {gunicorn_worker_class}
+    
+    # Determines whether to use virtual environment caching to speed up
+    # deployments (will only install new dependencies; use gondor deploy
+    # --fresh to deploy to rebuild the virtual environment)
+    use_environment_cache: true
 """.format(**ctx)
         out("Writing configuration ({})... ".format(config_file))
         with open(config_file, "wb") as cf:
@@ -319,6 +324,8 @@ def cmd_deploy(args, env, config):
                 "tarball": tarball,
                 "project_root": os.path.relpath(env["project_root"], env["repo_root"]),
                 "run_on_deploy": {True: "true", False: "false"}[not args.no_on_deploy],
+                "zero": {True: "true", False: "false"}[args.zero],
+                "fresh": {True: "true", False: "false"}[args.fresh],
                 "app": json.dumps(config["app"]),
             }
             handlers = [
@@ -851,6 +858,8 @@ def main():
     # cmd: deploy
     parser_deploy = command_parsers.add_parser("deploy")
     parser_deploy.add_argument("--no-on-deploy", action="store_true")
+    parser_deploy.add_argument("--zero", action="store_true")
+    parser_deploy.add_argument("--fresh", action="store_true")
     parser_deploy.add_argument("label", nargs=1)
     parser_deploy.add_argument("commit", nargs=1)
     
@@ -962,6 +971,7 @@ def main():
                 "managepy": local_config.get("django", {}).get("managepy"),
                 "local_settings": local_config.get("django", {}).get("local_settings"),
                 "env": local_config.get("env", {}),
+                "use_environment_cache": local_config.get("wsgi", {}).get("use_environment_cache"),
             }
         })
         

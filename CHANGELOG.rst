@@ -2,6 +2,13 @@
 CHANGELOG
 =========
 
+1.2.2
+=====
+
+ * added --zero to deploy for zero downtime deployments
+ * support wsgi.use_environment_cache for virtual environment caching
+ * added --fresh to deploy for disabling virtual environment caching per-deploy
+
 1.2.1
 =====
 
