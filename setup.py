@@ -27,7 +27,7 @@ setup(
         ],
     },
     install_requires = [
-        "six==1.2.0",
+        "six==1.3.0",
     ],
     classifiers = [
         "Programming Language :: Python",
