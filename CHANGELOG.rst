@@ -7,6 +7,7 @@ CHANGELOG
 
  * fixed bug mercurial commit identification (use hg identify)
  * added runtime config option for running different Python versions
+ * updated SSL certificate for gondor run
 
 1.1.5
 =====
