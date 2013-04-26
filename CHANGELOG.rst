@@ -2,6 +2,17 @@
 CHANGELOG
 =========
 
+1.2.4
+=====
+
+ * updated SSL certificate for gondor run
+
+1.2.3
+=====
+
+ * upgraded six to match latest version to prevent incompatibilities with other
+   distributions using the newer version
+
 1.2.2
 =====
 
@@ -22,6 +33,11 @@ CHANGELOG
  * added runtime config option for running different Python versions on Gondor
  * fixed newline output in gondor manage
  * fixed bug mercurial commit identification (use hg identify)
+
+1.1.6
+=====
+
+    This release was merged in for 1.2, but released alongside 1.2.4.
 
 1.1.5
 =====
