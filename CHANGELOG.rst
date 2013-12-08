@@ -2,6 +2,11 @@
 CHANGELOG
 =========
 
+1.2.5
+=====
+
+ * fixed six dependency to work with newer versions
+
 1.2.4
 =====
 
