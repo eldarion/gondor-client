@@ -4,8 +4,6 @@ import os
 import re
 import socket
 import ssl
-import sys
-import time
 
 import six
 from six.moves import http_client
@@ -17,9 +15,9 @@ else:
     from urllib import urlencode
     from urllib2 import BaseHandler, HTTPHandler, HTTPSHandler
 
-ucb = None # upload callback
-ubs = None # upload bytes sent
-ubt = None # upload bytes total
+ucb = None  # upload callback
+ubs = None  # upload bytes sent
+ubt = None  # upload bytes total
 
 
 GONDOR_IO_CRT = os.path.join(
@@ -50,7 +48,7 @@ def match_hostname(cert, hostname):
     """Verify that *cert* (in decoded format as returned by
     SSLSocket.getpeercert()) matches the *hostname*.  RFC 2818 rules
     are mostly followed, but IP addresses are not accepted for *hostname*.
-    
+
     CertificateError is raised on failure. On success, the function
     returns nothing.
     """
@@ -58,13 +56,13 @@ def match_hostname(cert, hostname):
         raise ValueError("empty or no certificate")
     dnsnames = []
     san = cert.get('subjectAltName', ())
-    
+
     for key, value in san:
         if key == 'DNS':
             if _dnsname_to_pat(value).match(hostname):
                 return
             dnsnames.append(value)
-    
+
     if not san:
         # The subject is only checked when subjectAltName is empty
         for sub in cert.get('subject', ()):
@@ -88,15 +86,15 @@ class HTTPSConnection(http_client.HTTPConnection):
     This class allows communication via SSL.
     Ported from Python 3.2. Does not follow Eldarion code-style.
     """
-    
+
     default_port = 443
-    
+
     def __init__(self, host, port=None, key_file=None, cert_file=None,
                  strict=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
         http_client.HTTPConnection.__init__(self, host, port, strict, timeout)
         self.key_file = key_file
         self.cert_file = cert_file
-    
+
     def connect(self):
         """
         Connect to a host on a given (SSL) port.
@@ -115,7 +113,7 @@ class HTTPSConnection(http_client.HTTPConnection):
 
 
 class GondorHTTPSHandler(HTTPSHandler):
-    
+
     def https_open(self, request):
         return self.do_open(HTTPSConnection, request)
 
@@ -140,16 +138,14 @@ def UploadProgressHandler(pb, ssl=False):
                 if percentage != prev:
                     pb.display()
                     prev = percentage
-                t1 = time.time()
-                conn_class.send(self, buf[ubs:ubs+cs])
+                conn_class.send(self, buf[ubs:ubs + cs])
                 ubs += cs
-                t2 = time.time()
             # once we are done uploading the file set the progress bar to
             # 100% as sometimes it never gets full
             pb.update(100)
             pb.display()
     class _UploadProgressHandler(handler_class):
-        handler_order = HTTPHandler.handler_order - 9 # run second
+        handler_order = HTTPHandler.handler_order - 9  # run second
         if ssl:
             def https_open(self, request):
                 return self.do_open(HTTPConnection, request)
@@ -160,8 +156,8 @@ def UploadProgressHandler(pb, ssl=False):
 
 
 class MultipartPostHandler(BaseHandler):
-    handler_order = HTTPHandler.handler_order - 10 # run first
-    
+    handler_order = HTTPHandler.handler_order - 10  # run first
+
     def http_request(self, request):
         data = request.get_data()
         if data is not None and not isinstance(data, str):
@@ -180,12 +176,12 @@ class MultipartPostHandler(BaseHandler):
                 data = urlencode(params, 1).encode("utf-8")
             else:
                 boundary, data = self.multipart_encode(params, files)
-                request.add_unredirected_header("Content-Type", b'multipart/form-data; boundary="'+ boundary + b'"')
+                request.add_unredirected_header("Content-Type", b'multipart/form-data; boundary="' + boundary + b'"')
             request.add_data(data)
         return request
-    
+
     https_request = http_request
-    
+
     def multipart_encode(self, params, files, boundary=None, buf=None):
         if boundary is None:
             boundary = email.generator._make_boundary()
