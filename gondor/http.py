@@ -159,7 +159,7 @@ class MultipartPostHandler(BaseHandler):
     handler_order = HTTPHandler.handler_order - 10  # run first
 
     def http_request(self, request):
-        data = request.get_data()
+        data = request.data
         if data is not None and not isinstance(data, str):
             params, files = [], []
             try:
@@ -177,7 +177,7 @@ class MultipartPostHandler(BaseHandler):
             else:
                 boundary, data = self.multipart_encode(params, files)
                 request.add_unredirected_header("Content-Type", b'multipart/form-data; boundary="' + boundary + b'"')
-            request.add_data(data)
+            request.data = data
         return request
 
     https_request = http_request
