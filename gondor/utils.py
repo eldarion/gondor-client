@@ -77,7 +77,7 @@ def api_error(e):
         output = "\n\n{}".format(message)
     else:
         output = message
-    out("API returned an error [{}]: {}\n".format(e.code, message))
+    out("API returned an error [{}]: {}\n".format(e.code, output))
     sys.exit(1)
 
 

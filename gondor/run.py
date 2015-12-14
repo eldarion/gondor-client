@@ -4,11 +4,11 @@ import select
 import ssl
 import sys
 
-from .utils import stdin_buffer, confirm
+from .utils import stdin_buffer
 
 
 def unix_run_poll(sock):
-    with stdin_buffer() as stdin:
+    with stdin_buffer():
         while True:
             try:
                 try:
@@ -46,12 +46,12 @@ def win32_run_poll(sock):
     mode = ctypes.c_int(0)
     win32.GetConsoleMode(hin, ctypes.byref(mode))
     mode = mode.value
-    mode = mode & (~0x0001) # disable processed input
-    mode = mode & (~0x0002) # disable line input
-    mode = mode & (~0x0004) # disable echo input
+    mode = mode & (~0x0001)  # disable processed input
+    mode = mode & (~0x0002)  # disable line input
+    mode = mode & (~0x0004)  # disable echo input
     win32.SetConsoleMode(hin, mode)
     handles = [hin, sev]
-    handles = (ctypes.c_long*len(handles))(*handles)
+    handles = (ctypes.c_long * len(handles))(*handles)
     sock.settimeout(0.1)
     while True:
         i = win32.WaitForMultipleObjects(len(handles), handles, False, 1000)
